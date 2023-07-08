@@ -28,7 +28,7 @@ async function completion(userInput = 'Oi!') {
 }
 
 async function createImage() {
-	const userInput = 'A broken blue pencil'
+	const userInput = 'Gato com asas tentando voar'
 	const numberOfImages = 1
 	
 	const response = await openai.createImage({

@@ -16,5 +16,5 @@ app.post('/ask', async (req, res) => {
 })
 
 app.listen(3000, () => {
-	console.log('Iniciando....\n\n')
+	console.log('Iniciando.... http://localhost:3000\n\n')
 })
