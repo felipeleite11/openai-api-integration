@@ -2,7 +2,7 @@
 
 ## Instalation
 
-- Run ```yarn``` ou ```npm install``
+- Run ```yarn``` ou ```npm install```
 
 ## Executing the app
-- Run ```yarn start``` ou ```npm start``
+- Run ```yarn start``` ou ```npm start```
