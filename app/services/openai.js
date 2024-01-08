@@ -16,7 +16,7 @@ async function completion(userInput = 'Oi!') {
 		model: 'gpt-3.5-turbo',
 		messages: [
 			// { role: 'system', content: 'Você é uma secretária virtual e, ao ser saudada, deve deixar claras suas atribuições.' },
-			{ role: 'system', content: 'Você é um assistente capaz executar pequenas tarefas, como cálculos matemáticos, traduções de frases e sugestão de receitas.' },
+			{ role: 'system', content: 'Você é um assistente capaz executar pequenas tarefas, como cálculos matemáticos e tradução de frases.' },
 			{ role: 'user', content: userInput }
 		]
 	})
