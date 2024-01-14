@@ -3,20 +3,18 @@ require('dotenv/config')
 const { resolve } = require('path')
 const fs = require('fs')
 
-const { Configuration, OpenAIApi } = require('openai')
+const OpenAI = require('openai')
 
-const configuration = new Configuration({
-  	apiKey: process.env.OPENAI_KEY
+const openai = new OpenAI({
+	apiKey: process.env.OPENAI_KEY
 })
-
-const openai = new OpenAIApi(configuration)
 
 async function completion(userInput = 'Oi!') {
 	const completion = await openai.createChatCompletion({
 		model: 'gpt-3.5-turbo',
 		messages: [
 			// { role: 'system', content: 'Você é uma secretária virtual e, ao ser saudada, deve deixar claras suas atribuições.' },
-			{ role: 'system', content: 'Você é um assistente capaz executar pequenas tarefas, como cálculos matemáticos e tradução de frases.' },
+			// { role: 'system', content: 'Você é um assistente capaz executar pequenas tarefas, como cálculos matemáticos e tradução de frases.' },
 			{ role: 'user', content: userInput }
 		]
 	})
@@ -27,8 +25,11 @@ async function completion(userInput = 'Oi!') {
 	return completion.data.choices[0].message.content
 }
 
-async function createImage() {
-	const userInput = 'Gato com asas tentando voar'
+async function createImage(userInput) {
+	if(!userInput) {
+		return null
+	}
+
 	const numberOfImages = 1
 	
 	const response = await openai.createImage({
@@ -39,6 +40,37 @@ async function createImage() {
 
 	console.log('User input:', userInput)
 	console.log('ChatGPT answer:', response.data.data[0].url)
+
+	return response.data.data[0].url
+}
+
+async function textToSpeech(userInput) {
+	if(!userInput) {
+		return null
+	}
+
+	const baseURL = 'http://localhost:3000'
+	const generatedFileName = 'transcription.mp3'
+
+	try {
+		const audio = await openai.audio.speech.create({
+			model: 'tts-1',
+			voice: 'nova',
+			input: userInput
+		})
+
+		const buffer = Buffer.from(await audio.arrayBuffer())
+
+		fs.writeFile(`static/${generatedFileName}`, buffer, (e) => {
+			console.log(e)
+		})
+		
+		console.log('User input:', userInput)
+
+		return `${baseURL}/${generatedFileName}`
+	} catch(e) {
+		return null
+	}
 }
 
 async function transcriptAudio() {
@@ -77,5 +109,6 @@ module.exports = {
 	completion,
 	createImage,
 	transcriptAudio,
-	translateAudioToEnglish
+	translateAudioToEnglish,
+	textToSpeech
 }
