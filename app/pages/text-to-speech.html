@@ -40,6 +40,15 @@
 			flex: 1;
 		}
 
+		#voice {
+			padding: 12px;
+			border-radius: 6px;
+			border: 0;
+			outline: none;
+			flex: 1;
+			cursor: pointer;
+		}
+
 		#send-button {
 			padding: 12px;
 			border-radius: 6px;
@@ -64,6 +73,21 @@
 			color: #424242;
 			min-height: 24px;
 			border: solid 3px #8bc34a;
+			flex-direction: column;
+			gap: 8px;
+			max-height: 500px;
+			overflow-y: auto;
+		}
+		
+		.row {
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			gap: 8px;
+		}
+
+		.row:hover {
+			background-color: #efefef;
 		}
 	</style>
 </head>
@@ -75,9 +99,22 @@
 
 		<input type="text" id="input" placeholder="Digite o texto..." />
 
+		<div></div>
+
+		<select id="voice">
+			<option value="nova">Nova</option>
+			<option value="alloy">Alloy</option>
+			<option value="echo">Echo</option>
+			<option value="onyx">Onyx</option>
+			<option value="fable">Fable</option>
+			<option value="shimmer">Shimmer</option>
+		</select>
+
 		<button id="send-button">Enviar</button>
 
-		<p id="answer" class="animate__animated animate__zoomIn animate__faster"></p>
+		<p id="answer" class="animate__animated animate__zoomIn animate__faster">
+			
+		</p>
 	</div>
 
 	<script>
@@ -99,28 +136,28 @@
 
 		document.addEventListener('DOMContentLoaded', function() {
 			const textInput = document.querySelector('#input')
+			const voiceInput = document.querySelector('#voice')
 			const sendButton = document.querySelector('#send-button')
 			const answer = document.querySelector('#answer')
 			
 			async function sendText() {
 				turnButtonToWaitState(sendButton)
 				
-				const { data } = await axios.post(`${baseURL}/text-to-speech`, { input: textInput.value })
+				const { data } = await axios.post(`${baseURL}/text-to-speech`, { 
+					input: textInput.value,
+					voice: voiceInput.value
+				})
 
 				console.log(data)
 
-				const audio = document.createElement('audio')
-				audio.src = data.answer
-				audio.setAttribute('autoplay', 'autoplay')
-				audio.innerHTML = 'O seu navegador não suporta o elemento audio.'
-				
-				const link = document.createElement('a')
-				link.href = data.answer
-				link.innerHTML = 'Áudio'
+				if(!data) {
+					alert('Erro ao gerar o áudio.')
+				}
 
-				answer.appendChild(link)
-				answer.appendChild(audio)
-				answer.style.display = 'block'
+				const newRow = generateRow(textInput.value, data.answer)
+
+				answer.prepend(newRow)
+				answer.style.display = 'flex'
 
 				resetButtonState(sendButton)
 			}
@@ -133,6 +170,24 @@
 				}
 			})
 		})
+
+		function generateRow(text, audioSrc) {
+			const audio = document.createElement('audio')
+			audio.src = audioSrc
+			audio.setAttribute('controls', 'controls')
+			audio.setAttribute('autoplay', 'autoplay')
+			audio.innerHTML = 'O seu navegador não suporta o elemento audio.'
+
+			const span = document.createElement('span')
+			span.innerHTML = text
+
+			const container = document.createElement('div')
+			container.classList.add('row')
+			container.appendChild(span)
+			container.appendChild(audio)
+
+			return container
+		}
 	</script>
 </body>
 </html>

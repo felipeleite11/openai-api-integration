@@ -5,6 +5,8 @@
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 	<title>ChatGPT</title>
 
+	<script src="https://unpkg.com/ionicons@4.5.10-0/dist/ionicons.js"></script>
+
 	<style>
 		body {
 			background-color: #262626;
@@ -20,9 +22,9 @@
 		}
 
 		.container {
-			display: grid;
-			grid-template-columns: auto 90px;
+			display: flex;
 			gap: 12px;
+			align-items: center;
 		}
 
 		#input {
@@ -58,23 +60,58 @@
 			min-height: 24px;
 			border: solid 3px #8bc34a;
 		}
+
 		a {
 			background-color: #fff;
 			color: #424242;
 			padding: 8px;
 			border-radius: 8px;
 			text-decoration: none;
+			font-size: 12px;
+			font-weight: 600;
+			display: flex;
+			flex-direction: column;
+			justify-content: space-between;
+			gap: 4px;
+			align-items: center;
+			height: 50px;
+			transition: all 0.2s;
+			transform-origin: center;
+		}
+
+		a:hover {
+			scale: 1.05;
+		}
+
+		ion-icon {
+			font-size: 30px;
 		}
 	</style>
 </head>
 <body>
 	<h1>ChatGPT SDK Integration</h1>
 
-	<a href="/completion.html">COMPLETION</a>
+	<div class="container">
+		<a href="/completion.html">
+			<ion-icon name="chatbubbles"></ion-icon>
+			COMPLETION
+		</a>
 
-	<a href="/image-creation.html">IMAGE CREATION</a>
+		<a href="/image-creation.html">
+			<ion-icon name="image"></ion-icon>
+			IMAGE CREATION
+		</a>
 
-	<a href="/text-to-speech.html">TEXT-TO-SPEECH</a>
+		<a href="/text-to-speech.html">
+			<ion-icon name="volume-high"></ion-icon>
+			TEXT-TO-SPEECH
+		</a>
 
+		<a href="/speech-to-text.html">
+			<ion-icon name="text"></ion-icon>
+			SPEECH-TO-TEXT
+		</a>
+	</div>
+	
 </body>
 </html>

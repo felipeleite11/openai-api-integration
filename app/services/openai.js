@@ -44,31 +44,75 @@ async function createImage(userInput) {
 	return response.data.data[0].url
 }
 
-async function textToSpeech(userInput) {
+async function textToSpeech(userInput, voice) {
 	if(!userInput) {
 		return null
 	}
 
 	const baseURL = 'http://localhost:3000'
-	const generatedFileName = 'transcription.mp3'
 
 	try {
+		const files = fs.readdirSync('static')
+
+		const nextIndex = files.length + 1
+
+		const generatedFileName = `transcription_${nextIndex}.mp3`
+		
 		const audio = await openai.audio.speech.create({
 			model: 'tts-1',
-			voice: 'nova',
+			voice: voice || 'nova',
 			input: userInput
 		})
 
+		if(!audio) {
+			throw new Error()
+		}
+
+		fs.rm(`static/${generatedFileName}`, () => {})
+		
 		const buffer = Buffer.from(await audio.arrayBuffer())
 
-		fs.writeFile(`static/${generatedFileName}`, buffer, (e) => {
-			console.log(e)
-		})
+		fs.writeFile(`static/${generatedFileName}`, buffer, () => {})
 		
 		console.log('User input:', userInput)
 
 		return `${baseURL}/${generatedFileName}`
 	} catch(e) {
+		return null
+	}
+}
+
+async function speechToText(userInput) {
+	if(!userInput) {
+		return null
+	}
+
+	try {
+		const filePath = 'static/audio.wav'
+
+		fs.rm('static/audio.wav', () => {})
+
+		fs.writeFile(filePath, userInput, () => {})
+
+		const readStream = fs.createReadStream(filePath)
+
+		const transcription = await openai.audio.transcriptions.create({
+			model: 'whisper-1',
+			file: readStream,
+			response_format: 'text',
+			language: 'pt'
+		})
+
+		if(!transcription) {
+			throw new Error()
+		}
+
+		console.log('Transcription: ', transcription)
+
+		return transcription
+	} catch(e) {
+		console.log(e)
+		
 		return null
 	}
 }
@@ -97,18 +141,11 @@ async function translateAudioToEnglish() {
 	console.log('Transcription: ', response.data.text)
 }
 
-// completion()
-
-// createImage()
-
-// transcriptAudio()
-
-// translateAudioToEnglish()
-
 module.exports = {
 	completion,
 	createImage,
 	transcriptAudio,
 	translateAudioToEnglish,
-	textToSpeech
+	textToSpeech,
+	speechToText
 }
