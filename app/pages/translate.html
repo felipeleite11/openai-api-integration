@@ -121,6 +121,8 @@
 	</script>
 
 	<script>
+		const speech = window.speechSynthesis
+
 		const baseURL = 'http://localhost:3000'
 
 		const recordButton = document.querySelector('#record-button')
@@ -134,6 +136,24 @@
 			recordButton.addEventListener('click', () => { record() })
 			stopButton.addEventListener('click', () => { stopRecording() })
 		})
+
+		function speak(text, language = 'en') {
+			let voice
+
+			switch(language) {
+				case 'en': 
+					voice = speech.getVoices().filter(v => v.name.includes('United States'))[0]
+					break
+				
+				default:
+					voice = speech.getVoices().filter(v => v.name.includes('Brazil'))[0]
+					break
+			}
+
+			const ut = new SpeechSynthesisUtterance(text)
+			ut.voice = voice
+			speech.speak(ut)
+		}
 
 		async function allowMicrophone() {
 			try {
@@ -162,7 +182,7 @@
 					chunks = []
 					audioURL = window.URL.createObjectURL(blob)
 
-					sendAudio(blob, audioURL)
+					translate(blob, audioURL)
 				}
 			} catch(e) {
 				console.log('Erro:', e)
@@ -173,7 +193,7 @@
 
 		function record() {
 			try {
-				if(navigator.mediaDevices && navigator.mediaDevices.getUserMedia){
+				if(navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
 					mediaRecorder.start()
 				}
 			} catch(e) {
@@ -182,12 +202,44 @@
 				alert('Erro ao acessar o microfone.')
 			}
 
-			stopButton.style.display = 'none'
-			recordButton.style.display = 'block'
+			stopButton.style.display = 'block'
+			recordButton.style.display = 'none'
 		}
 
 		function stopRecording() {
 			mediaRecorder.stop()
+
+			stopButton.style.display = 'none'
+			recordButton.style.display = 'block'
+		}
+
+		async function translate(blob, audioURL) {
+			try {
+				let row = generateRow(audioURL, 'Traduzindo...')
+
+				answer.innerHTML = ''
+				answer.appendChild(row)
+
+				const formData = new FormData()
+				formData.append('input', blob, 'audio.wav')
+
+				const { data } = await axios.post(`${baseURL}/translate`, formData)
+
+				console.log('Translated: ', data.answer)
+
+				if(!data.answer) {
+					return
+				}
+
+				speak(data.answer, 'en')
+
+				row = generateRow(audioURL, data.answer)
+
+				answer.innerHTML = ''
+				answer.appendChild(row)
+			} catch(e) {
+				console.log(e)
+			}
 		}
 
 		function generateRow(audioURL, text) {
@@ -199,38 +251,17 @@
 			const span = document.createElement('span')
 			span.innerHTML = text
 
+			const button = document.createElement('button')
+			button.innerHTML = 'Falar'
+			button.addEventListener('click', () => { speak(text) })
+
 			const container = document.createElement('div')
 			container.style = 'display: flex; justify-content: space-between; align-items: center'
 			container.appendChild(audio)
 			container.appendChild(span)
+			container.appendChild(button)
 
 			return container
-		}
-
-		async function sendAudio(blob, audioURL) {
-			stopButton.style.display = 'none'
-			recordButton.style.display = 'block'
-
-			const formData = new FormData()
-  			formData.append('input', blob, 'audio.wav')
-
-			try {
-				let row = generateRow(audioURL, 'Transcrevendo...')
-
-				answer.innerHTML = ''
-				answer.appendChild(row)
-
-				const { data } = await axios.post(`${baseURL}/speech-to-text`, formData)
-
-				row = generateRow(audioURL, data.answer)
-
-				answer.innerHTML = ''
-				answer.appendChild(row)
-			} catch(e) {
-				console.log(e)
-
-				alert('Erro ao transcrever.')
-			}
 		}
 	</script>
 </body>

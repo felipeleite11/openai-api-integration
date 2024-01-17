@@ -1,6 +1,5 @@
 require('dotenv/config')
 
-const { resolve } = require('path')
 const fs = require('fs')
 
 const OpenAI = require('openai')
@@ -10,19 +9,19 @@ const openai = new OpenAI({
 })
 
 async function completion(userInput = 'Oi!') {
-	const completion = await openai.createChatCompletion({
-		model: 'gpt-3.5-turbo',
+	const response = await openai.chat.completions.create({
 		messages: [
-			// { role: 'system', content: 'Você é uma secretária virtual e, ao ser saudada, deve deixar claras suas atribuições.' },
-			// { role: 'system', content: 'Você é um assistente capaz executar pequenas tarefas, como cálculos matemáticos e tradução de frases.' },
+			{ role: "system", content: "Você responde qualquer pergunta em português." },
 			{ role: 'user', content: userInput }
-		]
+		],
+		model: 'gpt-3.5-turbo',
+		max_tokens: 40
 	})
 
 	console.log('User input:', userInput)
-	console.log('ChatGPT answer:', completion.data.choices[0].message.content, '\n\n')
+	console.log('ChatGPT answer:', response.choices[0].message.content, '\n\n')
 
-	return completion.data.choices[0].message.content
+	return response.choices[0].message.content
 }
 
 async function createImage(userInput) {
@@ -32,16 +31,26 @@ async function createImage(userInput) {
 
 	const numberOfImages = 1
 	
-	const response = await openai.createImage({
-		prompt: userInput,
-		n: numberOfImages,
-		size: '1024x1024',
-	})
+	// TODO: Erro
+	// const response = await openai.createImage({
+	// 	prompt: userInput,
+	// 	n: numberOfImages,
+	// 	size: '1024x1024',
+	// })
 
-	console.log('User input:', userInput)
-	console.log('ChatGPT answer:', response.data.data[0].url)
+	console.log(openai.images)
 
-	return response.data.data[0].url
+	// const response = await openai.images.create({
+	// 	model: 'dall-e-3',
+	// 	prompt: userInput,
+	// 	n: numberOfImages,
+	// 	size: '1024x1024',
+	// })
+
+	// console.log('User input:', userInput)
+	// console.log('ChatGPT answer:', response.data[0].url)
+
+	// return response.data.data[0].url
 }
 
 async function textToSpeech(userInput, voice) {
@@ -117,34 +126,37 @@ async function speechToText(userInput) {
 	}
 }
 
-async function transcriptAudio() {
-	const audioPath = resolve(__dirname, '..', 'assets', 'audio.m4a')
+async function translateAudioToEnglish(userInput) {
+	if(!userInput) {
+		return null
+	}
 
-	const response = await openai.createTranscription({
-		file: fs.createReadStream(audioPath),
-		model: 'whisper-1',
-		language: 'pt'
-	})
+	try {
+		const filePath = 'static/audio.wav'
 
-	console.log('Transcription: ', response.data.text)
-}
+		fs.rm('static/audio.wav', () => {})
 
-async function translateAudioToEnglish() {
-	const audioPath = resolve(__dirname, '..', 'assets', 'audio.m4a')
+		fs.writeFile(filePath, userInput, () => {})
 
-	const response = await openai.createTranslation({
-		file: fs.createReadStream(audioPath),
-		model: 'whisper-1',
-		language: 'pt'
-	})
+		const readStream = fs.createReadStream(filePath)
 
-	console.log('Transcription: ', response.data.text)
+		const response = await openai.audio.translations.create({
+			model: 'whisper-1',
+			file: readStream,
+			language: 'en'
+		})
+
+		return response.text
+	} catch(e) {
+		console.log(e)
+		
+		return null
+	}
 }
 
 module.exports = {
 	completion,
 	createImage,
-	transcriptAudio,
 	translateAudioToEnglish,
 	textToSpeech,
 	speechToText

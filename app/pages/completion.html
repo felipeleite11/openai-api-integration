@@ -95,6 +95,7 @@
 	</script>
 
 	<script>
+		const speech = window.speechSynthesis
 		const baseURL = 'http://localhost:3000'
 
 		document.addEventListener('DOMContentLoaded', function() {
@@ -110,6 +111,8 @@
 
 				console.log(data)
 
+				speak(data.answer, 'pt')
+
 				answer.innerText = data.answer
 				answer.style.display = 'block'
 
@@ -124,6 +127,24 @@
 				}
 			})
 		})
+
+		function speak(text, language = 'en') {
+			let voice
+
+			switch(language) {
+				case 'en': 
+					voice = speech.getVoices().filter(v => v.name.includes('United States'))[0]
+					break
+				
+				default:
+					voice = speech.getVoices().filter(v => v.name.includes('Brazil'))[0]
+					break
+			}
+
+			const ut = new SpeechSynthesisUtterance(text)
+			ut.voice = voice
+			speech.speak(ut)
+		}
 	</script>
 </body>
 </html>
