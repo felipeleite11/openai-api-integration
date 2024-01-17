@@ -132,10 +132,8 @@
 		let mediaRecorder
 		let chunks = []
 
-		document.addEventListener('DOMContentLoaded', function() {
-			recordButton.addEventListener('click', () => { record() })
-			stopButton.addEventListener('click', () => { stopRecording() })
-		})
+		recordButton.addEventListener('click', () => { record() })
+		stopButton.addEventListener('click', () => { stopRecording() })
 
 		function speak(text, language = 'en') {
 			let voice

@@ -40,7 +40,7 @@
 			flex: 1;
 		}
 
-		#voice {
+		select {
 			padding: 12px;
 			border-radius: 6px;
 			border: 0;
@@ -49,7 +49,13 @@
 			cursor: pointer;
 		}
 
-		#send-button {
+		.input-container {
+			display: flex;
+			flex-direction: column;
+			gap: 8px;
+		}
+
+		button {
 			padding: 12px;
 			border-radius: 6px;
 			outline: none;
@@ -60,7 +66,7 @@
 			width: 90px;
 		}
 
-		#send-button:disabled {
+		button:disabled {
 			opacity: 0.6;
 		}
 
@@ -101,16 +107,28 @@
 
 		<div></div>
 
-		<select id="voice">
-			<option value="nova">Nova</option>
-			<option value="alloy">Alloy</option>
-			<option value="echo">Echo</option>
-			<option value="onyx">Onyx</option>
-			<option value="fable">Fable</option>
-			<option value="shimmer">Shimmer</option>
-		</select>
+		<div class="input-container">
+			<label for="voice">OpenAI voices:</label>
 
-		<button id="send-button">Enviar</button>
+			<select id="voice">
+				<option value="nova">Nova</option>
+				<option value="alloy">Alloy</option>
+				<option value="echo">Echo</option>
+				<option value="onyx">Onyx</option>
+				<option value="fable">Fable</option>
+				<option value="shimmer">Shimmer</option>
+			</select>
+		</div>
+
+		<button id="send-button">Falar</button>
+
+		<div class="input-container">
+			<label for="voice-browser">Browzer API voices:</label>
+
+			<select id="voice-browser"></select>
+		</div>
+
+		<button id="speak-button">Falar</button>
 
 		<p id="answer" class="animate__animated animate__zoomIn animate__faster">
 			
@@ -133,12 +151,35 @@
 
 	<script>
 		const baseURL = 'http://localhost:3000'
+		const speech = window.speechSynthesis
+
+		const voiceInputBrowzer = document.querySelector('#voice-browser')
+		const voiceInput = document.querySelector('#voice')
+
+		let voiceList = []
+
+		window.onload = function() {
+			voiceList = speech.getVoices().filter(v => v.name.includes('Brazil') || v.name.includes('United States'))
+			
+			fillBrowserVoiceList()
+		}
+
+		function speak(text) {
+			let voice = voiceList[voiceInputBrowzer.value]
+
+			const ut = new SpeechSynthesisUtterance(text)
+			ut.voice = voice
+			speech.speak(ut)
+		}
 
 		document.addEventListener('DOMContentLoaded', function() {
 			const textInput = document.querySelector('#input')
 			const voiceInput = document.querySelector('#voice')
 			const sendButton = document.querySelector('#send-button')
+			const speakButton = document.querySelector('#speak-button')
 			const answer = document.querySelector('#answer')
+
+			fillBrowserVoiceList()
 			
 			async function sendText() {
 				turnButtonToWaitState(sendButton)
@@ -148,14 +189,12 @@
 					voice: voiceInput.value
 				})
 
-				console.log(data)
-
 				if(!data) {
 					alert('Erro ao gerar o áudio.')
 				}
 
 				const newRow = generateRow(textInput.value, data.answer)
-
+				
 				answer.prepend(newRow)
 				answer.style.display = 'flex'
 
@@ -163,6 +202,7 @@
 			}
 
 			sendButton.addEventListener('click', () => { sendText() })
+			speakButton.addEventListener('click', () => { speak(textInput.value) })
 
 			textInput.addEventListener('keyup', e => {
 				if(e.keyCode === 13) {
@@ -170,6 +210,16 @@
 				}
 			})
 		})
+
+		function fillBrowserVoiceList() {
+			for(const v in voiceList) {
+				const option = document.createElement('option')
+				option.value = v
+				option.innerHTML = voiceList[v].name
+
+				voiceInputBrowzer.appendChild(option)
+			}
+		}
 
 		function generateRow(text, audioSrc) {
 			const audio = document.createElement('audio')
