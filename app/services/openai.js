@@ -1,7 +1,7 @@
 require('dotenv/config')
 
+const axios = require('axios')
 const fs = require('fs')
-
 const OpenAI = require('openai')
 
 const openai = new OpenAI({
@@ -31,26 +31,21 @@ async function createImage(userInput) {
 
 	const numberOfImages = 1
 	
-	// TODO: Erro
-	// const response = await openai.createImage({
-	// 	prompt: userInput,
-	// 	n: numberOfImages,
-	// 	size: '1024x1024',
-	// })
+	const { data: response } = await axios.post('https://api.openai.com/v1/images/generations', {
+		prompt: userInput,
+		model: 'dall-e-2',
+		n: numberOfImages,
+		size: '1024x1024'
+	}, {
+		headers: {
+			Authorization: `Bearer ${process.env.OPENAI_KEY}`
+		}
+	})
+	
+	console.log('User input:', userInput)
+	console.log('\nChatGPT answer:', response.data[0].url)
 
-	console.log(openai.images)
-
-	// const response = await openai.images.create({
-	// 	model: 'dall-e-3',
-	// 	prompt: userInput,
-	// 	n: numberOfImages,
-	// 	size: '1024x1024',
-	// })
-
-	// console.log('User input:', userInput)
-	// console.log('ChatGPT answer:', response.data[0].url)
-
-	// return response.data.data[0].url
+	return response.data[0].url
 }
 
 async function textToSpeech(userInput, voice) {
