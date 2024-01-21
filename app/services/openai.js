@@ -8,6 +8,8 @@ const openai = new OpenAI({
 	apiKey: process.env.OPENAI_KEY
 })
 
+const baseURL = 'http://localhost:3000'
+
 async function completion(userInput = 'Oi!') {
 	const response = await openai.chat.completions.create({
 		messages: [
@@ -52,8 +54,6 @@ async function textToSpeech(userInput, voice) {
 	if(!userInput) {
 		return null
 	}
-
-	const baseURL = 'http://localhost:3000'
 
 	try {
 		const files = fs.readdirSync('static')
@@ -149,12 +149,13 @@ async function translateAudioToEnglish(userInput) {
 	}
 }
 
-async function completionByAudio(userInput) {
+async function completionByAudio(userInput, voice) {
 	if(!userInput) {
 		return null
 	}
 
 	try {
+		// Captura do áudio da pergunta
 		const filePath = 'static/audio.wav'
 
 		fs.rm('static/audio.wav', () => {})
@@ -163,6 +164,7 @@ async function completionByAudio(userInput) {
 
 		const readStream = fs.createReadStream(filePath)
 
+		// Transformando pergunta em texto
 		const transcription = await openai.audio.transcriptions.create({
 			model: 'whisper-1',
 			file: readStream,
@@ -170,6 +172,7 @@ async function completionByAudio(userInput) {
 			language: 'pt'
 		})
 		
+		// Enviando pergunta para o Completions e recenbendo a resposta
 		const response = await openai.chat.completions.create({
 			messages: [
 				{ role: 'user', content: transcription }
@@ -180,11 +183,37 @@ async function completionByAudio(userInput) {
 	
 		const answer = response.choices[0].message.content
 
-		console.log('answer', answer)
+		// Sintetização da resposta em áudio
+		const files = fs.readdirSync('static')
 
+		const nextIndex = files.length + 1
+
+		const generatedFileName = `completion_${nextIndex}.mp3`
+		
+		const audio = await openai.audio.speech.create({
+			model: 'tts-1',
+			voice: voice || 'nova',
+			input: answer
+		})
+
+		if(!audio) {
+			throw new Error()
+		}
+
+		fs.rm(`static/${generatedFileName}`, () => {})
+		
+		const buffer = Buffer.from(await audio.arrayBuffer())
+
+		fs.writeFile(`static/${generatedFileName}`, buffer, () => {})
+		
+		console.log('question:', transcription)
+		console.log('answer:', answer)
+		console.log('audio URL:', `${baseURL}/${generatedFileName}`)
+	
 		return {
 			question: transcription,
-			answer
+			answer_text: answer,
+			answer_audio: `${baseURL}/${generatedFileName}`
 		}
 	} catch(e) {
 		console.log(e)
