@@ -143,8 +143,8 @@
 				mediaRecorder = new MediaRecorder(stream)
 
 				mediaRecorder.ondataavailable = (e) => {
-						chunks.push(e.data)
-					}
+					chunks.push(e.data)
+				}
 
 				mediaRecorder.onstart = () => {
 					recordButton.style.display = 'none'
@@ -237,7 +237,7 @@
   			formData.append('input', blob, 'audio.wav')
 
 			try {
-				let row = generateQuestionRow(audioURL, 'Aguarde...')
+				let row = generateRow('Pergunta:', '', audioURL)
 
 				answer.prepend(row)				
 
