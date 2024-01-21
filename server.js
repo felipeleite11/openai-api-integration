@@ -1,6 +1,6 @@
 const express = require('express')
 
-const { completion, createImage, textToSpeech, speechToText, translateAudioToEnglish } = require('./app/services/openai')
+const { completion, createImage, textToSpeech, speechToText, translateAudioToEnglish, completionByAudio } = require('./app/services/openai')
 const { upload } = require('./app/config/multer')
 
 const app = express()
@@ -51,6 +51,12 @@ app.post('/translate', upload.single('input'), async (req, res) => {
 	return res.json({
 		answer: response
 	})
+})
+
+app.post('/completion_by_audio', upload.single('input'), async (req, res) => {
+	const response = await completionByAudio(req.file.buffer)
+
+	return res.json(response)
 })
 
 app.listen(3000, () => {

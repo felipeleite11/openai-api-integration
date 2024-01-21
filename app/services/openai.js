@@ -149,10 +149,55 @@ async function translateAudioToEnglish(userInput) {
 	}
 }
 
+async function completionByAudio(userInput) {
+	if(!userInput) {
+		return null
+	}
+
+	try {
+		const filePath = 'static/audio.wav'
+
+		fs.rm('static/audio.wav', () => {})
+
+		fs.writeFile(filePath, userInput, () => {})
+
+		const readStream = fs.createReadStream(filePath)
+
+		const transcription = await openai.audio.transcriptions.create({
+			model: 'whisper-1',
+			file: readStream,
+			response_format: 'text',
+			language: 'pt'
+		})
+		
+		const response = await openai.chat.completions.create({
+			messages: [
+				{ role: 'user', content: transcription }
+			],
+			model: 'gpt-3.5-turbo',
+			max_tokens: 40
+		})
+	
+		const answer = response.choices[0].message.content
+
+		console.log('answer', answer)
+
+		return {
+			question: transcription,
+			answer
+		}
+	} catch(e) {
+		console.log(e)
+		
+		return null
+	}
+}
+
 module.exports = {
 	completion,
 	createImage,
 	translateAudioToEnglish,
 	textToSpeech,
-	speechToText
+	speechToText,
+	completionByAudio
 }
