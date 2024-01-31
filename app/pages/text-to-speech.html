@@ -1,14 +1,12 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
+
 <head>
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 	<title>ChatGPT</title>
 
-	<link
-		rel="stylesheet"
-		href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css"
-	/>
+	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css" />
 
 	<script src="https://cdnjs.cloudflare.com/ajax/libs/axios/0.5.4/axios.standalone.min.js"></script>
 
@@ -84,7 +82,7 @@
 			max-height: 500px;
 			overflow-y: auto;
 		}
-		
+
 		.row {
 			display: flex;
 			align-items: center;
@@ -97,6 +95,7 @@
 		}
 	</style>
 </head>
+
 <body>
 	<h1>ChatGPT SDK Integration</h1>
 
@@ -131,7 +130,7 @@
 		<button id="speak-button">Falar</button>
 
 		<p id="answer" class="animate__animated animate__zoomIn animate__faster">
-			
+
 		</p>
 	</div>
 
@@ -140,7 +139,7 @@
 			btn.innerText = 'Aguarde...'
 			btn.disabled = true
 			btn.style.cursor = 'wait'
-		} 
+		}
 
 		function resetButtonState(btn) {
 			btn.innerText = 'Enviar'
@@ -150,7 +149,7 @@
 	</script>
 
 	<script>
-		const baseURL = 'http://localhost:3000'
+		const baseURL = 'https://openai.robot.rio.br'
 		const speech = window.speechSynthesis
 
 		const voiceInputBrowzer = document.querySelector('#voice-browser')
@@ -158,9 +157,9 @@
 
 		let voiceList = []
 
-		window.onload = function() {
+		window.onload = function () {
 			voiceList = speech.getVoices().filter(v => v.name.includes('Brazil') || v.name.includes('United States'))
-			
+
 			fillBrowserVoiceList()
 		}
 
@@ -172,7 +171,7 @@
 			speech.speak(ut)
 		}
 
-		document.addEventListener('DOMContentLoaded', function() {
+		document.addEventListener('DOMContentLoaded', function () {
 			const textInput = document.querySelector('#input')
 			const voiceInput = document.querySelector('#voice')
 			const sendButton = document.querySelector('#send-button')
@@ -180,21 +179,21 @@
 			const answer = document.querySelector('#answer')
 
 			fillBrowserVoiceList()
-			
+
 			async function sendText() {
 				turnButtonToWaitState(sendButton)
-				
-				const { data } = await axios.post(`${baseURL}/text-to-speech`, { 
+
+				const { data } = await axios.post(`${baseURL}/text-to-speech`, {
 					input: textInput.value,
 					voice: voiceInput.value
 				})
 
-				if(!data) {
+				if (!data) {
 					alert('Erro ao gerar o áudio.')
 				}
 
 				const newRow = generateRow(textInput.value, data.answer)
-				
+
 				answer.prepend(newRow)
 				answer.style.display = 'flex'
 
@@ -205,14 +204,14 @@
 			speakButton.addEventListener('click', () => { speak(textInput.value) })
 
 			textInput.addEventListener('keyup', e => {
-				if(e.keyCode === 13) {
+				if (e.keyCode === 13) {
 					sendText()
 				}
 			})
 		})
 
 		function fillBrowserVoiceList() {
-			for(const v in voiceList) {
+			for (const v in voiceList) {
 				const option = document.createElement('option')
 				option.value = v
 				option.innerHTML = voiceList[v].name
@@ -240,4 +239,5 @@
 		}
 	</script>
 </body>
+
 </html>

@@ -1,4 +1,5 @@
 const express = require('express')
+const cors = require('cors')
 
 const { completion, createImage, textToSpeech, speechToText, translateAudioToEnglish, completionByAudio } = require('./app/services/openai')
 const { upload } = require('./app/config/multer')
@@ -8,6 +9,7 @@ const app = express()
 app.use(express.static('app/pages'))
 app.use(express.static('static'))
 app.use(express.json())
+app.use(cors())
 
 app.post('/completion', async (req, res) => {
 	const response = await completion(req.body.input)
@@ -59,6 +61,6 @@ app.post('/completion_by_audio', upload.single('input'), async (req, res) => {
 	return res.json(response)
 })
 
-app.listen(3000, () => {
+app.listen(8030, () => {
 	console.log('Iniciando.... http://localhost:3000\n\n')
 })

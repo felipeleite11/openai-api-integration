@@ -1,14 +1,12 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
+
 <head>
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 	<title>ChatGPT</title>
 
-	<link
-		rel="stylesheet"
-		href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css"
-	/>
+	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css" />
 
 	<script src="https://cdnjs.cloudflare.com/ajax/libs/axios/0.5.4/axios.standalone.min.js"></script>
 
@@ -67,6 +65,7 @@
 		}
 	</style>
 </head>
+
 <body>
 	<h1>ChatGPT SDK Integration</h1>
 
@@ -85,7 +84,7 @@
 			btn.innerText = 'Aguarde...'
 			btn.disabled = true
 			btn.style.cursor = 'wait'
-		} 
+		}
 
 		function resetButtonState(btn) {
 			btn.innerText = 'Enviar'
@@ -96,13 +95,13 @@
 
 	<script>
 		const speech = window.speechSynthesis
-		const baseURL = 'http://localhost:3000'
+		const baseURL = 'https://openai.robot.rio.br'
 
-		document.addEventListener('DOMContentLoaded', function() {
+		document.addEventListener('DOMContentLoaded', function () {
 			const textInput = document.querySelector('#input')
 			const sendButton = document.querySelector('#send-button')
 			const answer = document.querySelector('#answer')
-			
+
 			async function sendMessage() {
 				turnButtonToWaitState(sendButton)
 				answer.style.display = 'none'
@@ -122,7 +121,7 @@
 			sendButton.addEventListener('click', () => { sendMessage() })
 
 			textInput.addEventListener('keyup', e => {
-				if(e.keyCode === 13) {
+				if (e.keyCode === 13) {
 					sendMessage()
 				}
 			})
@@ -131,11 +130,11 @@
 		function speak(text, language = 'en') {
 			let voice
 
-			switch(language) {
-				case 'en': 
+			switch (language) {
+				case 'en':
 					voice = speech.getVoices().filter(v => v.name.includes('United States'))[0]
 					break
-				
+
 				default:
 					voice = speech.getVoices().filter(v => v.name.includes('Brazil'))[0]
 					break
@@ -147,4 +146,5 @@
 		}
 	</script>
 </body>
+
 </html>

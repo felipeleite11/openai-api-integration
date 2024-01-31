@@ -1,14 +1,12 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
+
 <head>
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 	<title>ChatGPT</title>
 
-	<link
-		rel="stylesheet"
-		href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css"
-	/>
+	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css" />
 
 	<script src="https://cdnjs.cloudflare.com/ajax/libs/axios/0.5.4/axios.standalone.min.js"></script>
 
@@ -75,7 +73,7 @@
 			overflow-y: auto;
 			justify-content: space-between;
 		}
-		
+
 		.row {
 			display: grid;
 			grid-template-columns: 16rem 1fr 22rem;
@@ -93,6 +91,7 @@
 		}
 	</style>
 </head>
+
 <body>
 	<h1>ChatGPT SDK Integration</h1>
 
@@ -103,7 +102,7 @@
 		<button id="stop-button">Parar gravação</button>
 
 		<p id="answer" class="animate__animated animate__zoomIn animate__faster">
-			
+
 		</p>
 	</div>
 
@@ -112,7 +111,7 @@
 			btn.innerText = 'Aguarde...'
 			btn.disabled = true
 			btn.style.cursor = 'wait'
-		} 
+		}
 
 		function resetButtonState(btn) {
 			btn.innerText = 'Enviar'
@@ -122,7 +121,7 @@
 	</script>
 
 	<script>
-		const baseURL = 'http://localhost:3000'
+		const baseURL = 'https://openai.robot.rio.br'
 
 		const recordButton = document.querySelector('#record-button')
 		const stopButton = document.querySelector('#stop-button')
@@ -131,15 +130,15 @@
 		let mediaRecorder
 		let chunks = []
 
-		document.addEventListener('DOMContentLoaded', function() {
+		document.addEventListener('DOMContentLoaded', function () {
 			recordButton.addEventListener('click', () => { record() })
 			stopButton.addEventListener('click', () => { stopRecording() })
 		})
 
 		async function allowMicrophone() {
 			try {
-				const stream = await navigator.mediaDevices.getUserMedia({audio: true})
-				
+				const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+
 				mediaRecorder = new MediaRecorder(stream)
 
 				mediaRecorder.ondataavailable = (e) => {
@@ -155,15 +154,15 @@
 
 					answer.prepend(span)
 				}
-			
+
 				mediaRecorder.onstop = () => {
-					const blob = new Blob(chunks, {'type': 'audio/ogg; codecs=opus'})
+					const blob = new Blob(chunks, { 'type': 'audio/ogg; codecs=opus' })
 					chunks = []
 					audioURL = window.URL.createObjectURL(blob)
 
 					sendAudio(blob, audioURL)
 				}
-			} catch(e) {
+			} catch (e) {
 				console.log('Erro:', e)
 			}
 		}
@@ -172,10 +171,10 @@
 
 		function record() {
 			try {
-				if(navigator.mediaDevices && navigator.mediaDevices.getUserMedia){
+				if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
 					mediaRecorder.start()
 				}
-			} catch(e) {
+			} catch (e) {
 				console.log(e)
 
 				alert('Erro ao acessar o microfone.')
@@ -234,16 +233,16 @@
 			recordButton.style.display = 'block'
 
 			const formData = new FormData()
-  			formData.append('input', blob, 'audio.wav')
+			formData.append('input', blob, 'audio.wav')
 
 			try {
 				let row = generateRow('Pergunta:', '', audioURL)
 
-				answer.prepend(row)				
+				answer.prepend(row)
 
 				const { data } = await axios.post(`${baseURL}/completion_by_audio`, formData)
 
-				if(!data) {
+				if (!data) {
 					alert('Erro ao gerar o áudio.')
 				}
 
@@ -252,9 +251,9 @@
 				const { question, answer_audio, answer_text } = data
 
 				const newRow = generateRow(question, answer_text, answer_audio)
-				
+
 				answer.prepend(newRow)
-			} catch(e) {
+			} catch (e) {
 				console.log(e)
 
 				alert('Erro ao transcrever.')
@@ -262,4 +261,5 @@
 		}
 	</script>
 </body>
+
 </html>

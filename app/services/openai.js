@@ -8,7 +8,7 @@ const openai = new OpenAI({
 	apiKey: process.env.OPENAI_KEY
 })
 
-const baseURL = 'http://localhost:3000'
+const baseURL = 'https://openai.robot.rio.br'
 
 async function completion(userInput = 'Oi!') {
 	const response = await openai.chat.completions.create({
@@ -27,12 +27,12 @@ async function completion(userInput = 'Oi!') {
 }
 
 async function createImage(userInput) {
-	if(!userInput) {
+	if (!userInput) {
 		return null
 	}
 
 	const numberOfImages = 1
-	
+
 	const { data: response } = await axios.post('https://api.openai.com/v1/images/generations', {
 		prompt: userInput,
 		model: 'dall-e-2',
@@ -43,7 +43,7 @@ async function createImage(userInput) {
 			Authorization: `Bearer ${process.env.OPENAI_KEY}`
 		}
 	})
-	
+
 	console.log('User input:', userInput)
 	console.log('\nChatGPT answer:', response.data[0].url)
 
@@ -51,7 +51,7 @@ async function createImage(userInput) {
 }
 
 async function textToSpeech(userInput, voice) {
-	if(!userInput) {
+	if (!userInput) {
 		return null
 	}
 
@@ -61,42 +61,42 @@ async function textToSpeech(userInput, voice) {
 		const nextIndex = files.length + 1
 
 		const generatedFileName = `transcription_${nextIndex}.mp3`
-		
+
 		const audio = await openai.audio.speech.create({
 			model: 'tts-1',
 			voice: voice || 'nova',
 			input: userInput
 		})
 
-		if(!audio) {
+		if (!audio) {
 			throw new Error()
 		}
 
-		fs.rm(`static/${generatedFileName}`, () => {})
-		
+		fs.rm(`static/${generatedFileName}`, () => { })
+
 		const buffer = Buffer.from(await audio.arrayBuffer())
 
-		fs.writeFile(`static/${generatedFileName}`, buffer, () => {})
-		
+		fs.writeFile(`static/${generatedFileName}`, buffer, () => { })
+
 		console.log('User input:', userInput)
 
 		return `${baseURL}/${generatedFileName}`
-	} catch(e) {
+	} catch (e) {
 		return null
 	}
 }
 
 async function speechToText(userInput) {
-	if(!userInput) {
+	if (!userInput) {
 		return null
 	}
 
 	try {
 		const filePath = 'static/audio.wav'
 
-		fs.rm('static/audio.wav', () => {})
+		fs.rm('static/audio.wav', () => { })
 
-		fs.writeFile(filePath, userInput, () => {})
+		fs.writeFile(filePath, userInput, () => { })
 
 		const readStream = fs.createReadStream(filePath)
 
@@ -107,31 +107,31 @@ async function speechToText(userInput) {
 			language: 'pt'
 		})
 
-		if(!transcription) {
+		if (!transcription) {
 			throw new Error()
 		}
 
 		console.log('Transcription: ', transcription)
 
 		return transcription
-	} catch(e) {
+	} catch (e) {
 		console.log(e)
-		
+
 		return null
 	}
 }
 
 async function translateAudioToEnglish(userInput) {
-	if(!userInput) {
+	if (!userInput) {
 		return null
 	}
 
 	try {
 		const filePath = 'static/audio.wav'
 
-		fs.rm('static/audio.wav', () => {})
+		fs.rm('static/audio.wav', () => { })
 
-		fs.writeFile(filePath, userInput, () => {})
+		fs.writeFile(filePath, userInput, () => { })
 
 		const readStream = fs.createReadStream(filePath)
 
@@ -142,15 +142,15 @@ async function translateAudioToEnglish(userInput) {
 		})
 
 		return response.text
-	} catch(e) {
+	} catch (e) {
 		console.log(e)
-		
+
 		return null
 	}
 }
 
 async function completionByAudio(userInput, voice) {
-	if(!userInput) {
+	if (!userInput) {
 		return null
 	}
 
@@ -158,9 +158,9 @@ async function completionByAudio(userInput, voice) {
 		// Captura do áudio da pergunta
 		const filePath = 'static/audio.wav'
 
-		fs.rm('static/audio.wav', () => {})
+		fs.rm('static/audio.wav', () => { })
 
-		fs.writeFile(filePath, userInput, () => {})
+		fs.writeFile(filePath, userInput, () => { })
 
 		const readStream = fs.createReadStream(filePath)
 
@@ -171,7 +171,7 @@ async function completionByAudio(userInput, voice) {
 			response_format: 'text',
 			language: 'pt'
 		})
-		
+
 		// Enviando pergunta para o Completions e recenbendo a resposta
 		const response = await openai.chat.completions.create({
 			messages: [
@@ -180,7 +180,7 @@ async function completionByAudio(userInput, voice) {
 			model: 'gpt-3.5-turbo',
 			max_tokens: 40
 		})
-	
+
 		const answer = response.choices[0].message.content
 
 		// Sintetização da resposta em áudio
@@ -189,35 +189,35 @@ async function completionByAudio(userInput, voice) {
 		const nextIndex = files.length + 1
 
 		const generatedFileName = `completion_${nextIndex}.mp3`
-		
+
 		const audio = await openai.audio.speech.create({
 			model: 'tts-1',
 			voice: voice || 'nova',
 			input: answer
 		})
 
-		if(!audio) {
+		if (!audio) {
 			throw new Error()
 		}
 
-		fs.rm(`static/${generatedFileName}`, () => {})
-		
+		fs.rm(`static/${generatedFileName}`, () => { })
+
 		const buffer = Buffer.from(await audio.arrayBuffer())
 
-		fs.writeFile(`static/${generatedFileName}`, buffer, () => {})
-		
+		fs.writeFile(`static/${generatedFileName}`, buffer, () => { })
+
 		console.log('question:', transcription)
 		console.log('answer:', answer)
 		console.log('audio URL:', `${baseURL}/${generatedFileName}`)
-	
+
 		return {
 			question: transcription,
 			answer_text: answer,
 			answer_audio: `${baseURL}/${generatedFileName}`
 		}
-	} catch(e) {
+	} catch (e) {
 		console.log(e)
-		
+
 		return null
 	}
 }
