@@ -222,11 +222,39 @@ async function completionByAudio(userInput, voice) {
 	}
 }
 
+async function listAssistants() {
+	const { data: assistants } = await openai.beta.assistants.list()
+
+	return assistants
+}
+
+async function retrieveAssistant(assistanteId) {
+	const assistant = await openai.beta.assistants.retrieve(assistanteId)
+
+	return assistant
+}
+
+async function sendToAssistant() {
+	// https://platform.openai.com/playground/assistants?assistant=asst_qV8lLXtQS8CnflMsnO5r45wf&mode=assistant&thread=thread_MkkTesdkkEB1pwLR32igvi5b
+
+	// TUTORIAL: https://youtu.be/qOyNqGclSV4?si=KdJFvp-wzyyL28u7&t=503
+
+	// Create a thread
+	// POST/v1/threads
+	// Add a message
+	// POST/v1/threads/thread_MkkTesdkkEB1pwLR32igvi5b/messages
+	// Run the thread
+	// 64 events
+	// POST/v1/threads/thread_MkkTesdkkEB1pwLR32igvi5b/runs
+}
+
 module.exports = {
 	completion,
 	createImage,
 	translateAudioToEnglish,
 	textToSpeech,
 	speechToText,
-	completionByAudio
+	completionByAudio,
+	listAssistants,
+	retrieveAssistant
 }

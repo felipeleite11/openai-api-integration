@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>ChatGPT</title>
+
+	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css" />
+
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/axios/0.5.4/axios.standalone.min.js"></script>
+
+	<style>
+		body {
+			background-color: #262626;
+			color: #fff;
+			font-family: Roboto, sans-serif;
+		}
+
+		h2 {
+			font-size: 16px;
+			grid-column-start: 1;
+			grid-column-end: 3;
+			width: 100%;
+		}
+
+		.container {
+			display: flex;
+			flex-direction: column;
+			gap: 12px;
+		}
+
+		#input {
+			padding: 12px;
+			border-radius: 6px;
+			border: 0;
+			outline: none;
+			flex: 1;
+		}
+
+		#voice {
+			padding: 12px;
+			border-radius: 6px;
+			border: 0;
+			outline: none;
+			flex: 1;
+			cursor: pointer;
+		}
+
+		button {
+			padding: 12px;
+			border-radius: 6px;
+			outline: none;
+			background-color: #8bc34a;
+			color: #fff;
+			border: 0;
+			cursor: pointer;
+			width: 90px;
+		}
+
+		#answer {
+			display: none;
+			grid-column: 1/span 2;
+			padding: 12px;
+			border-radius: 6px;
+			background-color: #fff;
+			color: #424242;
+			min-height: 24px;
+			border: solid 3px #8bc34a;
+			flex-direction: column;
+			gap: 8px;
+			max-height: 500px;
+			overflow-y: auto;
+			justify-content: space-between;
+		}
+
+		.row {
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			gap: 8px;
+		}
+
+		.row:hover {
+			background-color: #efefef;
+		}
+
+		#stop-button {
+			display: none;
+		}
+	</style>
+</head>
+
+<body>
+	<h1>ChatGPT SDK Integration</h1>
+
+	<div class="container">
+		<h2>List assistants</h2>
+
+		<ul id="assistants" class="animate__animated animate__zoomIn animate__faster">
+
+		</ul>
+
+		<div id="detail"></div>
+	</div>
+
+	<script>
+		// const baseURL = 'https://openai.robot.rio.br'
+		const baseURL = 'http://localhost:8030'
+
+		const assistants = document.querySelector('#assistants')
+		const detail = document.querySelector('#detail')
+
+		async function loadAssistantList() {
+			const { data } = await axios.get(`${baseURL}/list_assistants`)
+
+			assistants.innerHTML = ''
+
+			for(const item of data) {
+				const row = generateRow(item.name)
+				row.addEventListener('click', () => {
+					retrieveAssistant(item.id)
+				})
+				
+				assistants.appendChild(row)
+			}
+		}
+
+		loadAssistantList()
+
+		async function retrieveAssistant(id) {
+			const { data } = await axios.get(`${baseURL}/retrieve_assistant/${id}`)
+
+			detail.innerHTML = `ID: ${data.id}<br/>Name: ${data.name}<br/>Instructions: ${data.instructions}`
+		}
+
+		function generateRow(name) {
+			const span = document.createElement('span')
+			span.innerHTML = name
+
+			const container = document.createElement('li')
+			container.appendChild(span)
+
+			return container
+		}
+	</script>
+</body>
+
+</html>
