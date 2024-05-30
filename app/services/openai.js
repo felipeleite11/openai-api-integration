@@ -3,6 +3,7 @@ require('dotenv/config')
 const axios = require('axios')
 const fs = require('fs')
 const OpenAI = require('openai')
+const { delay } = require('../utils/time')
 
 const openai = new OpenAI({
 	apiKey: process.env.OPENAI_KEY
@@ -234,18 +235,35 @@ async function retrieveAssistant(assistanteId) {
 	return assistant
 }
 
-async function sendToAssistant() {
+async function sendToAssistant(input) {
 	// https://platform.openai.com/playground/assistants?assistant=asst_qV8lLXtQS8CnflMsnO5r45wf&mode=assistant&thread=thread_MkkTesdkkEB1pwLR32igvi5b
 
 	// TUTORIAL: https://youtu.be/qOyNqGclSV4?si=KdJFvp-wzyyL28u7&t=503
 
-	// Create a thread
-	// POST/v1/threads
-	// Add a message
-	// POST/v1/threads/thread_MkkTesdkkEB1pwLR32igvi5b/messages
-	// Run the thread
-	// 64 events
-	// POST/v1/threads/thread_MkkTesdkkEB1pwLR32igvi5b/runs
+	const thread = await openai.beta.threads.create({
+		messages: [
+			{
+				role: 'user',
+				content: input
+			}
+		]
+	})
+
+	let run = await openai.beta.threads.runs.create(thread.id, {
+		assistant_id: 'asst_qV8lLXtQS8CnflMsnO5r45wf'
+	})
+
+	while(run.status !== 'completed') {
+		run = await openai.beta.threads.runs.retrieve(thread.id, run.id)
+
+		await delay(500)
+	}
+
+	const messagesOfThread = await openai.beta.threads.messages.list(thread.id)
+
+	const latestMessage = messagesOfThread.data[0]
+
+	return latestMessage.content[0].text.value
 }
 
 module.exports = {
@@ -256,5 +274,6 @@ module.exports = {
 	speechToText,
 	completionByAudio,
 	listAssistants,
-	retrieveAssistant
+	retrieveAssistant,
+	sendToAssistant
 }
