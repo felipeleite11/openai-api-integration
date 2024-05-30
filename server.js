@@ -7,6 +7,7 @@ const { upload } = require('./app/config/multer')
 const app = express()
 
 app.use(express.static('app/pages'))
+app.use(express.static('app/lib'))
 app.use(express.static('static'))
 app.use(express.json())
 app.use(cors())

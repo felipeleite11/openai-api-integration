@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>ChatGPT</title>
+
+	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css" />
+
+	<script src="https://unpkg.com/react@17/umd/react.development.js" crossorigin></script>
+	<script src="https://unpkg.com/react-dom@17/umd/react-dom.development.js" crossorigin></script>
+	<script src="https://unpkg.com/@babel/standalone/babel.min.js" crossorigin></script>
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/axios/0.5.4/axios.standalone.min.js"></script>
+	<script src="https://cdn.tailwindcss.com"></script>
+	<script type="module" src="https://unpkg.com/ionicons@7.1.0/dist/ionicons/ionicons.esm.js"></script>
+	<script src="https://cdn.jsdelivr.net/npm/date-fns@3.6.0/cdn.min.js"></script>
+	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css" />
+
+	<style>
+		body {
+			background-color: #262626;
+			color: #fff;
+			font-family: Roboto, sans-serif;
+		}
+
+		h2 {
+			font-size: 16px;
+			grid-column-start: 1;
+			grid-column-end: 3;
+			width: 100%;
+		}
+
+		::-webkit-scrollbar {
+			width: 0px;
+		}
+
+		.chatbox-header,
+		.chatbox-input {
+			box-shadow: 0 2px 2px 0 rgba(0,0,0,0.14),0 3px 1px -2px rgba(0,0,0,0.12),0 1px 5px 0 rgba(0,0,0,0.2);
+		}
+	</style>
+</head>
+
+<body>
+	<h1>ChatGPT SDK Integration</h1>
+
+	<div class="container">
+		<h2>Assistant chat</h2>
+
+		<div id="chatbox"></div>
+	</div>
+
+	<script type="text/babel" src="./chatbox.js"></script>
+</body>
+
+</html>
