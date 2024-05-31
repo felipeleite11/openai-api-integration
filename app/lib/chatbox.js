@@ -532,13 +532,13 @@ function Modal() {
 			case 'video':
 				return (
 					<div className="h-full flex justify-center">
-						<video controls autoPlay src={mediaDetail.media} className="h-full object-fit rounded-md"></video>
+						<video controls autoPlay src={mediaDetail.media} className="w-full object-contain rounded-md"></video>
 					</div>
 				)
 			case 'image':
 				return (
 					<div className="h-full flex justify-center">
-						<img src={mediaDetail.media} className="h-full object-fit" />
+						<img src={mediaDetail.media} className="w-full object-contain" />
 					</div>
 				)
 			default: 
@@ -549,7 +549,7 @@ function Modal() {
 
 	return (
 		<div className="chatbox-overlay fixed top-0 left-0 w-screen h-screen bg-gray-800/70 z-50 flex items-center justify-center">
-			<div className="chatbox-window bg-slate-200 dark:bg-slate-700 w-[80%] h-fit max-h-[80%] rounded-md animate__animated animate__zoomIn animate__faster flex flex-col p-3">
+			<div className="chatbox-window bg-slate-200 dark:bg-slate-700 w-fit max-w-[80%] h-fit max-h-[80%] rounded-md animate__animated animate__zoomIn animate__faster flex flex-col p-3">
 				<div className="hover:bg-slate-300 dark:hover:bg-slate-600 cursor-pointer p-1 flex justify-center items-center rounded-md self-end text-slate-600 dark:text-slate-400" onClick={handleClose}>
 					<ion-icon name="close-outline" size="large"></ion-icon>
 				</div>
