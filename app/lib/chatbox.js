@@ -8,13 +8,15 @@
 	OK - permitir mídias (imagens, vídeos, áudios)
 	OK - Permitir ampliar imagens e vídeos em um modal
 	OK - Permitir copiar mensagem ao clicar em um balloon
-	- Tratar quando o nome do participante é muito extenso (usar ellipsis)
-	- Exportar conversa para texto único (copiar para área de transferência)
 	OK - Permitir escolher posição do chat
 	OK - Permitir escolher tema dark ou light (aplicar classes do Tailwind e deixar o navegador decidir o tema)
 	OK - Personalizar exibição da tag audio
 	OK - Permitir acelerar o áudio
-	- Tratar quebras de linha para links muito grandes (forçar quebra)
+	OK - Tratar quando o nome do participante é muito extenso (usar ellipsis)
+	- Exportar conversa para texto único (copiar para área de transferência)
+
+	ERROS
+	- O menu não consegue reativar os sons de alerta
 */
 
 const { createContext, useState, useContext, useEffect, useRef } = React
@@ -67,7 +69,7 @@ function GlobalProvider({ children }) {
 		{
 			id: 2,
 			sender: participants[1],
-			content: 'Auto answer with link: mylink.com/test',
+			content: 'Auto answer with link: https://chatgpt.com/c/f98c122e-437c-43ab-b316-d5c3d5c8bdc2',
 			sent_at: new Date('2024-05-30 08:02:00'),
 			type: 'text'
 		},
@@ -197,7 +199,9 @@ function Header() {
 					`} 
 				/>
 
-				{title}
+				<span className="overflow-hidden text-ellipsis whitespace-nowrap w-[170px]">
+					{title}
+				</span>
 			</div>
 
 			<div className="flex gap-1">
@@ -538,11 +542,17 @@ function Modal() {
 	}
 
 	useEffect(() => {
-		document.addEventListener('keyup', e => {
+		function keyup(e) {
 			if(e.key === 'Escape') {
 				handleClose()
 			}
-		})
+		}
+		
+		document.addEventListener('keyup', keyup)
+
+		return () => {
+			document.removeEventListener('keyup', keyup)
+		}
 	}, [])
 
 	if(!mediaDetail) {
