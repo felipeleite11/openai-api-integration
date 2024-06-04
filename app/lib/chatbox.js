@@ -12,7 +12,8 @@
 	- Exportar conversa para texto único (copiar para área de transferência)
 	OK - Permitir escolher posição do chat
 	OK - Permitir escolher tema dark ou light (aplicar classes do Tailwind e deixar o navegador decidir o tema)
-	- Personalizar exibição da tag audio
+	OK - Personalizar exibição da tag audio
+	OK - Permitir acelerar o áudio
 	- Tratar quebras de linha para links muito grandes (forçar quebra)
 */
 
@@ -89,7 +90,7 @@ function GlobalProvider({ children }) {
 		{
 			id: 5,
 			sender: participants[1],
-			media: 'notification.ogg', //'https://integrare-os-minio.nyr4mj.easypanel.host/integrare-os/dev/audio.mp3',
+			media: 'test/audio.mp3', //'https://integrare-os-minio.nyr4mj.easypanel.host/integrare-os/dev/audio.mp3',
 			sent_at: new Date('2024-05-30 08:10:00'),
 			type: 'audio',
 			content: 'Este é meu áudio'
@@ -240,37 +241,72 @@ function Balloon({ participant, content, media, whoami, sent_at, type }) {
 	function printContent() {
 		switch(type) {
 			case 'image': return (
-				<div className="hover:opacity-80 flex flex-col gap-2" onClick={() => { setMediaDetail({ content, type, media }) }}>
-					<img src={media} className="w-full object-cover rounded-md"  />
-					
-					{content && (
-						<p>{content}</p>
-					)}
+				<div 
+					className={`
+						chatbox-balloon-content cursor-pointer text-slate-800 dark:text-slate-200
+						${whoami === 'me' ? 'text-slate-700 dark:text-slate-200' : 'text-slate-700 dark:text-slate-600'}
+					`}
+				>
+					<div className="hover:opacity-80 flex flex-col gap-2" onClick={() => { setMediaDetail({ content, type, media }) }}>
+						<img src={media} className="w-full object-cover rounded-md"  />
+						
+						{content && (
+							<p>{content}</p>
+						)}
+					</div>
 				</div>
 			)
 			case 'video': return (
-				<div className="hover:opacity-80 flex flex-col gap-2" onClick={() => { setMediaDetail({ content, type, media }) }}>
-					<video src={media} className="w-full object-cover rounded-md"  />
-					<div className="absolute top-[42%] left-[42%] text-gray-200">
-						<ion-icon name="play-circle-outline" size="large"></ion-icon>
-					</div>
+				<div 
+					className={`
+						chatbox-balloon-content cursor-pointer text-slate-800 dark:text-slate-200
+						${whoami === 'me' ? 'text-slate-700 dark:text-slate-200' : 'text-slate-700 dark:text-slate-600'}
+					`}
+				>
+					<div className="hover:opacity-80 flex flex-col gap-2" onClick={() => { setMediaDetail({ content, type, media }) }}>
+						<video src={media} className="w-full object-cover rounded-md"  />
+						<div className="absolute top-[42%] left-[42%] text-gray-200">
+							<ion-icon name="play-circle-outline" size="large"></ion-icon>
+						</div>
 
-					{content && (
-						<p>{content}</p>
-					)}
+						{content && (
+							<p>{content}</p>
+						)}
+					</div>
 				</div>
 			)
 			case 'audio': return (
-				<>
-					<audio controls src={media} className="w-full scale-90" />		
+				<div 
+					className={`
+						chatbox-balloon-content cursor-pointer text-slate-800 dark:text-slate-200
+						${whoami === 'me' ? 'text-slate-700 dark:text-slate-200' : 'text-slate-700 dark:text-slate-600'}
+					`}
+				>
+					<AudioPlayer audio={media} />
 					
 					{content && (
-						<p>{content}</p>
+						<p className="mt-2">{content}</p>
 					)}
-				</>
+				</div>
 			)
 			default: return (
-				<div dangerouslySetInnerHTML={{ __html: prepareLinks(content) }} />
+				<div 
+					className={`
+						chatbox-balloon-content cursor-pointer text-slate-800 dark:text-slate-200
+						${whoami === 'me' ? 'text-slate-700 dark:text-slate-200' : 'text-slate-700 dark:text-slate-600'}
+					`}
+					data-tippy-content="Copiar"
+					onClick={e => {
+						const tempInput = document.createElement('textarea')
+						tempInput.value = e.target.innerHTML
+						document.body.appendChild(tempInput)
+						tempInput.select()
+						document.execCommand('copy')
+						document.body.removeChild(tempInput)
+					}}
+				>
+					<div dangerouslySetInnerHTML={{ __html: prepareLinks(content) }} />
+				</div>
 			)
 		}
 	}
@@ -294,23 +330,9 @@ function Balloon({ participant, content, media, whoami, sent_at, type }) {
 			<span className={`text-xs font-semibold opacity-90 ${whoami === 'me' ? 'text-slate-700 dark:text-slate-200' : 'text-slate-600'}`}>
 				{participant.name}
 			</span>
-			<span 
-				className={`
-					chatbox-balloon-content cursor-pointer text-slate-800 dark:text-slate-200
-					${whoami === 'me' ? 'text-slate-700 dark:text-slate-200' : 'text-slate-700 dark:text-slate-600'}
-				`}
-				data-tippy-content="Copiar"
-				onClick={e => {
-					const tempInput = document.createElement('textarea')
-					tempInput.value = e.target.innerHTML
-					document.body.appendChild(tempInput)
-					tempInput.select()
-					document.execCommand('copy')
-					document.body.removeChild(tempInput)
-				}}
-			>
-				{printContent()}
-			</span>
+
+			{printContent()}
+
 			<span className={`
 				text-[0.6rem] self-end opacity-50 
 				${whoami === 'me' ? 'text-slate-700 dark:text-slate-200' : 'text-slate-700 dark:text-slate-600'}
@@ -557,6 +579,117 @@ function Modal() {
 				<div className="overflow-y-auto p-2 pb-4">
 					{printContent()}
 				</div>
+			</div>
+		</div>
+	)
+}
+
+function AudioPlayer({ audio: media }) {
+	const speeds = [1, 2]
+
+	const [audio, setAudio] = useState(null)
+	const [isPlaying, setIsPlaying] = useState(false)
+	const [audioDuration, setAudioDuration] = useState(0)
+	const [audioCurrentTime, setAudioCurrentTime] = useState(0)
+	const [speed, setSpeed] = useState(1)
+
+	function togglePlayPause() {
+		if(!isPlaying) {
+			audio.play()
+			setIsPlaying(true)
+		} else {
+			audio.pause()
+			setIsPlaying(false)
+		}
+	}
+
+	function handleSeek(value) {
+		setAudio(old => {
+			old.currentTime = value
+
+			return old
+		})
+		setAudioCurrentTime(value)
+	}
+
+	function handleChangeSpeed() {
+		if(audio) {
+			const currentSpeedIndex = speeds.findIndex(s => s === speed)
+			const isFastest = speed === speeds.at(-1)
+			const newSpeed = isFastest ? speeds[0] : speeds[currentSpeedIndex + 1]
+
+			setAudio(old => {
+				old.playbackRate = newSpeed
+
+				return old
+			})
+
+			setSpeed(newSpeed)
+		}
+	}
+
+	useEffect(() => {
+		if(!audio) {
+			const audioObj = new Audio(media)
+
+			audioObj.onloadedmetadata = () => {
+				setAudioDuration(Math.floor(audioObj.duration))
+			}
+
+			audioObj.ontimeupdate = () => {
+				setAudioCurrentTime(Math.floor(audioObj.currentTime))
+			}
+
+			audioObj.onended = () => {
+				setIsPlaying(false)
+				handleSeek(0)
+			}
+
+			setAudio(audioObj)
+		}
+	}, [audio])
+
+	if(!audio) {
+		return null
+	}
+
+	const formattedCurrentTime = format(new Date(audioCurrentTime * 1000), 'mm:ss')
+	const formattedTotalDuration = format(new Date(audioDuration * 1000), 'mm:ss')
+
+	return (
+		<div className="audio-player flex flex-col">
+			<div className="flex gap-1">
+				<div onClick={togglePlayPause} className="p-1 rounded-md hover:bg-slate-200 flex justify-center items-center text-2xl">
+					{isPlaying ? (
+						<ion-icon name="pause-outline"></ion-icon>
+					) : (
+						<ion-icon name="play"></ion-icon>
+					)}
+				</div>
+				
+				<input 
+					type="range" 
+					step={1} 
+					min={0} 
+					max={audioDuration} 
+					value={audioCurrentTime} 
+					onChange={e => {
+						handleSeek(e.target.value)
+					}}
+					className="w-full"
+				/>
+
+				<span 
+					className="px-1 rounded-md text-sm text-slate-400 select-none hover:bg-slate-200 flex justify-center items-center" 
+					onClick={handleChangeSpeed}
+				>
+					{speed}x
+				</span>
+			</div>
+
+			<div className="flex justify-between w-full">
+				<span className="text-[10px] text-slate-400">{formattedCurrentTime}</span>
+				<span className="text-[10px] text-slate-400">{formattedTotalDuration}</span>
 			</div>
 		</div>
 	)
