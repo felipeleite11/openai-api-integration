@@ -38,17 +38,49 @@
 			width: 100%;
 		}
 
-		::-webkit-scrollbar {
+		#chatbox-container #messages-container::-webkit-scrollbar {
 			width: 0px;
 		}
 
-		.chatbox-header,
-		.chatbox-input {
+		#chatbox-container #chatbox-header,
+		#chatbox-container #chatbox-input {
 			box-shadow: 0 2px 2px 0 rgba(0,0,0,0.14),0 3px 1px -2px rgba(0,0,0,0.12),0 1px 5px 0 rgba(0,0,0,0.2);
 		}
 
-		.audio-player input[type="range"] {
-			accent-color: #334155;
+		#chatbox-container .audio-player input[type="range"] {
+			background-color: #33415555;
+			outline: none;
+			appearance: none;
+			height: 4px;
+			border-radius: 4px;
+			margin: auto 0;
+		}
+
+		#chatbox-container .audio-player input[type="range"]::-webkit-slider-thumb {
+			background-color: #465975;
+            appearance: none;
+            width: 8px;
+            height: 16px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+		@media (prefers-color-scheme: dark) {
+			#chatbox-container .chatbot-balloon-me .audio-player input[type="range"] {
+				background-color: #334155cc;
+			}
+
+			#chatbox-container .chatbot-balloon-him .audio-player input[type="range"] {
+				background-color: #33415555;
+			}
+
+			#chatbox-container .chatbot-balloon-me .audio-player input[type="range"]::-webkit-slider-thumb {
+				background-color: #838fa2;
+			}
+
+			#chatbox-container .chatbot-balloon-him .audio-player input[type="range"]::-webkit-slider-thumb {
+				background-color: #465975;
+			}
 		}
 	</style>
 </head>
@@ -62,6 +94,7 @@
 		<div id="chatbox"></div>
 	</div>
 
+	<script type="text/babel" src="./file-storage.js"></script>
 	<script type="text/babel" src="./chatbox.js"></script>
 </body>
 </html>

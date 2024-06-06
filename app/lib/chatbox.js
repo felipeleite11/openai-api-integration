@@ -14,17 +14,52 @@
 	OK - Permitir acelerar o áudio
 	OK - Tratar quando o nome do participante é muito extenso (usar ellipsis)
 	- Exportar conversa para texto único (copiar para área de transferência)
+	- Permitir upload de imagens
+	OK - Permitir gravação de áudios
+	- Permitir gravação de vídeos
+	- Ao iniciar um áudio, certificar de que todos os outros estejam parados
 
 	ERROS
-	- O menu não consegue reativar os sons de alerta
+	- O menu não consegue reativar os sons para novas mensagens
+	- Em áudios gravados, o cursor não vai até o final
 */
 
-const { createContext, useState, useContext, useEffect, useRef } = React
+const { createContext, useState, useContext, useEffect, useRef, useCallback } = React
 const { format } = dateFns
 
 const animations = {
-	balloonIn: 'animate__animated animate__bounceIn',
+	balloonIn: 'animate__animated animate__flipInX',
 	avatarIn: 'animate__animated animate__bounceIn'
+}
+
+let recordingChunks = []
+
+// TODO: Temporary
+async function blobToBase64(blob) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader()
+
+		reader.readAsDataURL(blob)
+
+        reader.onloadend = () => {
+            resolve(reader.result)
+        }
+
+        reader.onerror = reject
+    })
+}
+
+const storage = {
+	async store(blob) {
+		try {
+			// TODO: Temporary
+			const base64 = await blobToBase64(blob)
+
+			return base64
+		} catch(e) {
+			alert(e.message)
+		}
+	}
 }
 
 const soundNewMessage = new Howl({
@@ -59,40 +94,48 @@ function GlobalProvider({ children }) {
 		him
 	])
 	const [messages, setMessages] = useState([
-		{
-			id: 1,
-			sender: participants[0],
-			content: 'Olá, sou Felipe!',
-			sent_at: new Date('2024-05-30 08:00:00'),
-			type: 'text'
-		},
-		{
-			id: 2,
-			sender: participants[1],
-			content: 'Auto answer with link: https://chatgpt.com/c/f98c122e-437c-43ab-b316-d5c3d5c8bdc2',
-			sent_at: new Date('2024-05-30 08:02:00'),
-			type: 'text'
-		},
-		{
-			id: 3,
-			sender: participants[1],
-			media: 'https://img.freepik.com/fotos-gratis/rvore-de-notas-de-dolar-crescendo-em-um-vaso-branco_35913-3163.jpg',
-			sent_at: new Date('2024-05-30 08:05:00'),
-			type: 'image',
-			content: 'Esta é minha imagem'
-		},
-		{
-			id: 4,
-			sender: participants[1],
-			media: 'test/video.mp4', //'https://integrare-os-minio.nyr4mj.easypanel.host/integrare-os/video.mp4',
-			sent_at: new Date('2024-05-30 08:07:00'),
-			type: 'video',
-			content: 'Este é meu vídeo'
-		},
+		// {
+		// 	id: 1,
+		// 	sender: participants[0],
+		// 	content: 'Olá, sou Felipe!',
+		// 	sent_at: new Date('2024-05-30 08:00:00'),
+		// 	type: 'text'
+		// },
+		// {
+		// 	id: 2,
+		// 	sender: participants[1],
+		// 	content: 'Auto answer with link: https://chatgpt.com/c/f98c122e-437c-43ab-b316-d5c3d5c8bdc2',
+		// 	sent_at: new Date('2024-05-30 08:02:00'),
+		// 	type: 'text'
+		// },
+		// {
+		// 	id: 3,
+		// 	sender: participants[1],
+		// 	media: 'https://img.freepik.com/fotos-gratis/rvore-de-notas-de-dolar-crescendo-em-um-vaso-branco_35913-3163.jpg',
+		// 	sent_at: new Date('2024-05-30 08:05:00'),
+		// 	type: 'image',
+		// 	content: 'Esta é minha imagem'
+		// },
+		// {
+		// 	id: 4,
+		// 	sender: participants[1],
+		// 	media: 'test/video.mp4', //'https://integrare-os-minio.nyr4mj.easypanel.host/integrare-os/video.mp4',
+		// 	sent_at: new Date('2024-05-30 08:07:00'),
+		// 	type: 'video',
+		// 	content: 'Este é meu vídeo'
+		// },
 		{
 			id: 5,
 			sender: participants[1],
-			media: 'test/audio.mp3', //'https://integrare-os-minio.nyr4mj.easypanel.host/integrare-os/dev/audio.mp3',
+			media: 'test/audio.mp3',
+			sent_at: new Date('2024-05-30 08:10:00'),
+			type: 'audio',
+			content: 'Este é o áudio da Syndi'
+		},
+		{
+			id: 6,
+			sender: participants[0],
+			media: 'test/audio.mp3',
 			sent_at: new Date('2024-05-30 08:10:00'),
 			type: 'audio',
 			content: 'Este é meu áudio'
@@ -112,7 +155,7 @@ function GlobalProvider({ children }) {
 		container.scrollTop = container.scrollHeight
 	}
 
-	function addMessage({ sender, content, media, type = 'text' }) {
+	const addMessage = useCallback(({ sender, content, media, type = 'text' }) => {
 		setMessages(old => [...old, {
 			id: old.length + 1,
 			sender,
@@ -125,11 +168,13 @@ function GlobalProvider({ children }) {
 		setTimeout(() => {
 			scrollToEnd()
 
+			console.log('addMessage -> isSoundEnable', isSoundEnable)
+
 			if(sender.id !== me.id && isSoundEnable) {
 				soundNewMessage.play()
 			}
 		}, 200)
-	}
+	}, [isSoundEnable])
 
 	useEffect(() => {
 		if(isMenuVisible) {
@@ -183,12 +228,12 @@ function Header() {
 	const { title, him, setIsMinimized, isMinimized, setIsMenuVisible, isSoundEnable } = useContext(GlobalContext)
 
 	return (
-		<div className="chatbox-header bg-slate-100 dark:bg-slate-700 h-11 flex justify-between items-center pl-3 pr-2 text-sm text-slate-600 dark:text-slate-200 rounded-t-md z-20">
+		<div id="chatbox-header" className="bg-slate-100 dark:bg-slate-700 h-11 flex justify-between items-center pl-3 pr-2 text-sm text-slate-600 dark:text-slate-200 rounded-t-md z-20">
 			<div 
 				className="flex gap-3 items-center"
-				onMouseEnter={() => {
-					setIsMenuVisible(false)
-				}}
+				// onMouseEnter={() => {
+				// 	setIsMenuVisible(false)
+				// }}
 			>
 				<img 
 					src={him.avatar} 
@@ -286,7 +331,7 @@ function Balloon({ participant, content, media, whoami, sent_at, type }) {
 						${whoami === 'me' ? 'text-slate-700 dark:text-slate-200' : 'text-slate-700 dark:text-slate-600'}
 					`}
 				>
-					<AudioPlayer audio={media} />
+					<AudioPlayer media={media} whoami={whoami} />
 					
 					{content && (
 						<p className="mt-2">{content}</p>
@@ -326,7 +371,7 @@ function Balloon({ participant, content, media, whoami, sent_at, type }) {
 	return (
 		<div 
 			className={`
-				chatbox-balloon text-sm rounded-md p-2 pb-1 shadow-md w-[80%] flex flex-col gap-1
+				chatbox-balloon chatbot-balloon-${whoami} text-sm rounded-md p-2 pb-1 shadow-md w-[80%] flex flex-col gap-1
 				${whoami === 'me' ? 'bg-slate-100 dark:bg-slate-600 self-end' : 'bg-slate-100 text-slate-800 self-start'}
 				${animations.balloonIn}
 			`}
@@ -374,22 +419,95 @@ function Input() {
 	const inputRef = useRef()
 	const { addMessage, me, him, setAnsweringText } = useContext(GlobalContext)
 
-	function handleSend() {
+	const [textContent, setTextContent] = useState('')
+	const [audio, setAudio] = useState(null)
+	const [audioBlob, setAudioBlob] = useState(null)
+	const [mediaRecorder, setMediaRecorder] = useState(null)
+	const [isAudioRecording, setIsAudioRecording] = useState(false)
+	const [isRecordedAudioPlaying, setIsRecordedAudioPlaying] = useState(false)
+
+	async function handleSend() {
 		const content = inputRef.current.value
 
-		if(!content) {
+		if(!content && !audioBlob) {
 			return
+		}
+
+		let recordingURL
+
+		if(audioBlob) {
+			recordingURL = await storage.store(audioBlob)
 		}
 
 		addMessage({
 			sender: me,
-			content
+			content,
+			media: recordingURL,
+			type: audioBlob ? 'audio' : 'text'
 		})
 
-		inputRef.current.value = ''
+		setTextContent('')
+		setAudio(null)
+		setAudioBlob(null)
 
 		// TODO: Temporary
-		simulateAnswer()
+		// simulateAnswer()
+	}
+
+	async function checkMicrophonePermissision() {
+		if(navigator.mediaDevices && navigator.mediaDevices.getUserMedia){
+			const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+
+			const recorder = new MediaRecorder(stream)
+
+			recorder.ondataavailable = e => {
+				recordingChunks.push(e.data)
+			}
+
+			recorder.onstop = () => {
+				const blob = new Blob(recordingChunks, {
+					type: 'audio/ogg; codecs=opus'
+				})
+
+				setAudioBlob(blob)
+
+				recordingChunks = []
+
+				const audioURL = window.URL.createObjectURL(blob)
+
+				const audioObj = new Audio(audioURL)
+
+				audioObj.onplay = () => {
+					setIsRecordedAudioPlaying(true)
+				}
+
+				audioObj.onended = () => {
+					setIsRecordedAudioPlaying(false)
+				}
+
+				audioObj.onpause = () => {
+					setIsRecordedAudioPlaying(false)
+				}
+
+				setAudio(audioObj)
+			}
+
+			setMediaRecorder(recorder)
+		}
+	}
+
+	function handleRecordStart() {
+		setIsAudioRecording(true)
+		mediaRecorder.start()
+	}
+
+	function handleRecordStop() {
+		setIsAudioRecording(false)
+		mediaRecorder.stop()
+	}
+
+	function handleAttachFile() {
+		
 	}
 
 	useEffect(() => {
@@ -398,7 +516,9 @@ function Input() {
 				handleSend()
 			}
 		})
-	}, [])
+
+		checkMicrophonePermissision()
+	}, [inputRef])
 
 	// TODO: Temporary
 	function simulateAnswer() {
@@ -442,16 +562,87 @@ function Input() {
 		}, 1500)
 	}
 
-	return (
-		<div className="chatbox-input h-10 flex justify-between items-center bg-slate-100 dark:bg-slate-700 pr-2 z-20">
-			<input type="text" ref={inputRef} className="h-full bg-transparent w-full outline-none px-3 flex items-center text-sm text-slate-600 dark:text-slate-200" />
+	function getEnableActions() {
+		return textContent || audio ? [
+			{
+				icon: 'send-outline',
+				function: handleSend
+			}
+		] : [
+			{
+				icon: 'attach-outline',
+				function: handleAttachFile,
+				disabled: isAudioRecording
+			}
+		]
+	}
 
-			<div 
-				className="opacity-60 hover:opacity-100 hover:bg-slate-300 dark:hover:bg-slate-600 rounded-md p-2 pr-1 cursor-pointer flex items-center text-slate-700 dark:text-slate-200 transition-colors" 
-				onClick={handleSend}
-			>
-				<ion-icon name="send-outline" size="small"></ion-icon>
-			</div>
+	const actions = getEnableActions()
+	const isRecordingEnable = !textContent
+
+	return (
+		<div id="chatbox-input" className="h-10 flex justify-between items-center bg-slate-100 dark:bg-slate-700 pr-2 z-20">
+			<input 
+				type="text" 
+				ref={inputRef}
+				className="h-full bg-transparent w-full outline-none px-3 flex items-center text-sm text-slate-600 dark:text-slate-200" 
+				onChange={e => {
+					setTextContent(e.target.value)
+				}}
+				value={textContent}
+				disabled={isAudioRecording}
+			/>
+
+			{audio && (
+				<>
+					<div 
+						className="my-2 opacity-60 hover:opacity-100 hover:bg-slate-300 dark:hover:bg-slate-600 rounded-md p-1 flex items-center transition-colors text-xl cursor-pointer"
+						onClick={() => { 
+							if(isRecordedAudioPlaying) {
+								audio.stop()
+							} else {
+								audio.play()
+							}
+						}}
+					>
+						<ion-icon name={isRecordedAudioPlaying ? 'stop-outline' : 'play-outline'}></ion-icon>
+					</div>
+
+					<div 
+						className="my-2 opacity-60 hover:opacity-100 hover:bg-slate-300 dark:hover:bg-slate-600 rounded-md p-1 flex items-center transition-colors text-xl cursor-pointer"
+						onClick={() => { 
+							setAudio(null) 
+						}}
+					>
+						<ion-icon name="trash-outline"></ion-icon>
+					</div>
+				</>
+			)}
+
+			{isRecordingEnable && (
+				<div 
+					className={`
+						my-2 opacity-60 hover:opacity-100 hover:bg-slate-300 dark:hover:bg-slate-600 rounded-md p-1 flex items-center transition-colors text-2xl cursor-pointer
+					`}
+					onClick={isAudioRecording ? handleRecordStop : handleRecordStart}
+				>
+					<ion-icon name={isAudioRecording ? 'stop-outline' : 'mic-outline'}></ion-icon>
+				</div>
+			)}
+
+			{actions.map(action => (
+				<div 
+					key={action.icon}
+					className={`
+						my-2 hover:bg-slate-300 dark:hover:bg-slate-600 rounded-md p-1 flex items-center transition-colors
+						${textContent ? 'text-xl' : 'text-2xl'}
+						${action.disabled ? 'cursor-not-allowed opacity-20' : 'cursor-pointer opacity-60 hover:opacity-100'}
+					`}
+					onClick={action.function}
+				>
+					<ion-icon name={action.icon}></ion-icon>
+				</div>
+			))}
 		</div>
 	)
 }
@@ -525,7 +716,7 @@ function Menu() {
 }
 
 function Modal() {
-	const { mediaDetail, setMediaDetail, setIsMenuVisible } = useContext(GlobalContext)
+	const { mediaDetail, setMediaDetail } = useContext(GlobalContext)
 
 	function handleClose() {
 		const modalWindow = document.querySelector('.chatbox-window')
@@ -594,7 +785,7 @@ function Modal() {
 	)
 }
 
-function AudioPlayer({ audio: media }) {
+function AudioPlayer({ media, whoami }) {
 	const speeds = [1, 2]
 
 	const [audio, setAudio] = useState(null)
@@ -664,12 +855,18 @@ function AudioPlayer({ audio: media }) {
 	}
 
 	const formattedCurrentTime = format(new Date(audioCurrentTime * 1000), 'mm:ss')
-	const formattedTotalDuration = format(new Date(audioDuration * 1000), 'mm:ss')
+	const formattedTotalDuration = audioDuration === Infinity ? '00:00' : format(new Date(audioDuration * 1000), 'mm:ss')
 
 	return (
 		<div className="audio-player flex flex-col">
 			<div className="flex gap-1">
-				<div onClick={togglePlayPause} className="p-1 rounded-md hover:bg-slate-200 flex justify-center items-center text-2xl">
+				<div 
+					onClick={togglePlayPause} 
+					className={`
+						p-1 rounded-md flex justify-center items-center text-2xl 
+						${whoami === 'me' ? 'dark:hover:bg-slate-700 hover:bg-slate-200' : 'hover:bg-slate-200'}
+					`}
+				>
 					{isPlaying ? (
 						<ion-icon name="pause-outline"></ion-icon>
 					) : (
@@ -735,11 +932,14 @@ function ChatContainer() {
 
 	return (
 		<>
-			<div className={`
-				chatbox-container fixed w-[300px] bg-slate-200 dark:bg-slate-800 rounded-t-md shadow-lg z-50 flex flex-col overflow-hidden transition-all 
-				${isMinimized ? 'h-11' : 'h-[420px]'}
-				${positionClasses}
-			`}>
+			<div 
+				id="chatbox-container" 
+				className={`
+					fixed w-[300px] bg-slate-200 dark:bg-slate-800 rounded-t-md shadow-lg z-50 flex flex-col overflow-hidden transition-all 
+					${isMinimized ? 'h-11' : 'h-[420px]'}
+					${positionClasses}
+				`}
+			>
 				<Header />
 
 				{!isMinimized && (
