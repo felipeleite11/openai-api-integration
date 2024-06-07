@@ -18,6 +18,8 @@
 	OK - Permitir gravação de áudios
 	- Permitir gravação de vídeos
 	- Ao iniciar um áudio, certificar de que todos os outros estejam parados
+	- Áudios gravados e enviados devem ser persistidos no Minio
+	OK - Permitir previsualizar o áudio gravado, mostrando progresso
 
 	ERROS
 	- O menu não consegue reativar os sons para novas mensagens
@@ -25,7 +27,7 @@
 */
 
 const { createContext, useState, useContext, useEffect, useRef, useCallback } = React
-const { format } = dateFns
+const { format, startOfDay, addSeconds } = dateFns
 
 const animations = {
 	balloonIn: 'animate__animated animate__flipInX',
@@ -51,6 +53,20 @@ async function blobToBase64(blob) {
 
 const storage = {
 	async store(blob) {
+		try {
+			const formData = new FormData()
+
+			formData.append('file', blob, 'file.mp3')
+
+			const { data } = await axios.post('http://localhost:3333/test_api/upload_minio', formData)
+
+			return data.link
+		} catch(e) {
+			alert(e.message)
+		}
+	},
+
+	async storeBKP(blob) {
 		try {
 			// TODO: Temporary
 			const base64 = await blobToBase64(blob)
@@ -124,19 +140,19 @@ function GlobalProvider({ children }) {
 		// 	type: 'video',
 		// 	content: 'Este é meu vídeo'
 		// },
-		{
-			id: 5,
-			sender: participants[1],
-			media: 'test/audio.mp3',
-			sent_at: new Date('2024-05-30 08:10:00'),
-			type: 'audio',
-			content: 'Este é o áudio da Syndi'
-		},
+		// {
+		// 	id: 5,
+		// 	sender: participants[1],
+		// 	media: 'https://integrare-os-minio.nyr4mj.easypanel.host/integrare-os/9440d329-2f80-4230-b961-623f6e82855b..mp3',
+		// 	sent_at: new Date('2024-05-30 08:10:00'),
+		// 	type: 'audio',
+		// 	content: 'Este é o áudio da Syndi'
+		// },
 		{
 			id: 6,
 			sender: participants[0],
-			media: 'test/audio.mp3',
-			sent_at: new Date('2024-05-30 08:10:00'),
+			media: 'https://integrare-os-minio.nyr4mj.easypanel.host/integrare-os/2e12f34e-0cc9-4f81-88b0-5e731a32861a..MP3',
+			sent_at: new Date('2024-05-30 08:12:00'),
 			type: 'audio',
 			content: 'Este é meu áudio'
 		}
@@ -157,7 +173,7 @@ function GlobalProvider({ children }) {
 
 	const addMessage = useCallback(({ sender, content, media, type = 'text' }) => {
 		setMessages(old => [...old, {
-			id: old.length + 1,
+			id: new Date().toISOString(),
 			sender,
 			content,
 			media,
@@ -167,8 +183,6 @@ function GlobalProvider({ children }) {
 
 		setTimeout(() => {
 			scrollToEnd()
-
-			console.log('addMessage -> isSoundEnable', isSoundEnable)
 
 			if(sender.id !== me.id && isSoundEnable) {
 				soundNewMessage.play()
@@ -424,7 +438,10 @@ function Input() {
 	const [audioBlob, setAudioBlob] = useState(null)
 	const [mediaRecorder, setMediaRecorder] = useState(null)
 	const [isAudioRecording, setIsAudioRecording] = useState(false)
+	const [isAudioPreviewing, setIsAudioPreviewing] = useState(false)
 	const [isRecordedAudioPlaying, setIsRecordedAudioPlaying] = useState(false)
+	const [recordingDuration, setRecordingDuration] = useState(0)
+	const [previewDuration, setPreviewDuration] = useState(0)
 
 	async function handleSend() {
 		const content = inputRef.current.value
@@ -466,7 +483,7 @@ function Input() {
 
 			recorder.onstop = () => {
 				const blob = new Blob(recordingChunks, {
-					type: 'audio/ogg; codecs=opus'
+					type: 'audio/mp3; codecs=opus'
 				})
 
 				setAudioBlob(blob)
@@ -481,11 +498,11 @@ function Input() {
 					setIsRecordedAudioPlaying(true)
 				}
 
-				audioObj.onended = () => {
+				audioObj.onpause = () => {
 					setIsRecordedAudioPlaying(false)
 				}
 
-				audioObj.onpause = () => {
+				audioObj.onended = () => {
 					setIsRecordedAudioPlaying(false)
 				}
 
@@ -497,7 +514,10 @@ function Input() {
 	}
 
 	function handleRecordStart() {
+		setPreviewDuration(0)
+		setRecordingDuration(0)
 		setIsAudioRecording(true)
+
 		mediaRecorder.start()
 	}
 
@@ -507,7 +527,7 @@ function Input() {
 	}
 
 	function handleAttachFile() {
-		
+		alert('NÃO IMPLEMENTADO')
 	}
 
 	useEffect(() => {
@@ -519,6 +539,45 @@ function Input() {
 
 		checkMicrophonePermissision()
 	}, [inputRef])
+
+	useEffect(() => {
+		let recordingInterval
+
+		if(isAudioRecording) {
+			recordingInterval = setInterval(() => {
+				console.log('recordingDuration', recordingDuration)
+
+				setRecordingDuration(old => old + 1)
+			}, 1000)
+		}
+
+		return () => {
+			clearInterval(recordingInterval)
+		}
+	}, [isAudioRecording, recordingDuration])
+
+	useEffect(() => {
+		let previewInterval
+
+		if(isAudioPreviewing) {
+			previewInterval = setInterval(() => {
+				console.log('previewDuration', previewDuration)
+
+				setPreviewDuration(old => old + 1)
+			}, 1000)
+		}
+
+		return () => {
+			clearInterval(previewInterval)
+		}
+	}, [isAudioPreviewing, previewDuration])
+
+	useEffect(() => {
+		if(!isRecordedAudioPlaying) {
+			setPreviewDuration(0)
+			setIsAudioPreviewing(false)
+		}
+	}, [isRecordedAudioPlaying])
 
 	// TODO: Temporary
 	function simulateAnswer() {
@@ -577,33 +636,67 @@ function Input() {
 		]
 	}
 
+	function toggleStartStop() {
+		if(isRecordedAudioPlaying) {
+			audio.pause()
+			setIsAudioPreviewing(false)
+		} else {
+			audio.play()
+			setPreviewDuration(0)
+			setIsAudioPreviewing(true)
+		}
+	}
+
 	const actions = getEnableActions()
 	const isRecordingEnable = !textContent
+	const formattedAudioDuration = format(addSeconds(startOfDay(new Date()), recordingDuration), 'mm:ss')
+	const formattedAudioPreviewDuration = format(addSeconds(startOfDay(new Date()), previewDuration), 'mm:ss')
+	const previewDurationPercentage = previewDuration * 100 / recordingDuration
 
 	return (
 		<div id="chatbox-input" className="h-10 flex justify-between items-center bg-slate-100 dark:bg-slate-700 pr-2 z-20">
-			<input 
-				type="text" 
-				ref={inputRef}
-				className="h-full bg-transparent w-full outline-none px-3 flex items-center text-sm text-slate-600 dark:text-slate-200" 
-				onChange={e => {
-					setTextContent(e.target.value)
-				}}
-				value={textContent}
-				disabled={isAudioRecording}
-			/>
+			{!isAudioRecording && !audio && (
+				<input 
+					type="text" 
+					ref={inputRef}
+					className="h-full bg-transparent w-full outline-none px-3 flex items-center text-sm text-slate-600 dark:text-slate-200" 
+					onChange={e => {
+						setTextContent(e.target.value)
+					}}
+					value={textContent}
+					disabled={isAudioRecording}
+				/>
+			)}
+
+			{(isAudioRecording || audio) && (
+				<div className="flex flex-col w-full pl-2">
+					<div className={`flex justify-between text-xs mt-2 opacity-60 p-0.5 ${isAudioPreviewing ? '' : 'mb-2'}`}>
+						{previewDuration > 0 ? (
+							<div className="flex items-center">
+								{formattedAudioPreviewDuration}
+							</div>
+						) : <div />}
+
+						{recordingDuration > 0 && (
+							<div className="flex items-center">
+								{formattedAudioDuration}
+							</div>
+						)}
+					</div>
+
+					{isAudioPreviewing && (
+						<div className="audio-preview-progress border border-slate-500 rounded-sm h-1 w-full">
+							<div className={`relative transition-all w-[${previewDurationPercentage}%] bg-sky-500 h-1`}></div>
+						</div>
+					)}
+				</div>
+			)}
 
 			{audio && (
 				<>
 					<div 
 						className="my-2 opacity-60 hover:opacity-100 hover:bg-slate-300 dark:hover:bg-slate-600 rounded-md p-1 flex items-center transition-colors text-xl cursor-pointer"
-						onClick={() => { 
-							if(isRecordedAudioPlaying) {
-								audio.stop()
-							} else {
-								audio.play()
-							}
-						}}
+						onClick={toggleStartStop}
 					>
 						<ion-icon name={isRecordedAudioPlaying ? 'stop-outline' : 'play-outline'}></ion-icon>
 					</div>
@@ -790,7 +883,7 @@ function AudioPlayer({ media, whoami }) {
 
 	const [audio, setAudio] = useState(null)
 	const [isPlaying, setIsPlaying] = useState(false)
-	const [audioDuration, setAudioDuration] = useState(0)
+	const [audioDuration, setAudioDuration] = useState(Infinity)
 	const [audioCurrentTime, setAudioCurrentTime] = useState(0)
 	const [speed, setSpeed] = useState(1)
 
@@ -829,33 +922,51 @@ function AudioPlayer({ media, whoami }) {
 		}
 	}
 
+	async function loadAudio(url) {
+		// const { data } = await axios.get(url, {
+		// 	responseType: 'blob'
+		// })
+
+		// const audioData = URL.createObjectURL(data)
+
+		// console.log(url)
+
+		const audioObj = new Audio(url)
+
+		audioObj.onloadedmetadata = () => {
+			console.log('duration', audioObj.duration)
+
+			setAudioDuration(Math.floor(audioObj.duration))
+		}
+
+		audioObj.ontimeupdate = () => {
+			setAudioCurrentTime(Math.floor(audioObj.currentTime))
+		}
+
+		audioObj.onended = () => {
+			setIsPlaying(false)
+			handleSeek(0)
+		}
+
+		audioObj.load()
+
+		setAudio(audioObj)
+	}
+
 	useEffect(() => {
 		if(!audio) {
-			const audioObj = new Audio(media)
+			console.log('media', media)
 
-			audioObj.onloadedmetadata = () => {
-				setAudioDuration(Math.floor(audioObj.duration))
-			}
-
-			audioObj.ontimeupdate = () => {
-				setAudioCurrentTime(Math.floor(audioObj.currentTime))
-			}
-
-			audioObj.onended = () => {
-				setIsPlaying(false)
-				handleSeek(0)
-			}
-
-			setAudio(audioObj)
+			loadAudio(media)
 		}
 	}, [audio])
 
-	if(!audio) {
+	if(!audio) { // audioDuration === Infinity
 		return null
 	}
 
 	const formattedCurrentTime = format(new Date(audioCurrentTime * 1000), 'mm:ss')
-	const formattedTotalDuration = audioDuration === Infinity ? '00:00' : format(new Date(audioDuration * 1000), 'mm:ss')
+	const formattedTotalDuration = audioDuration !== Infinity ? format(new Date(audioDuration * 1000), 'mm:ss') : ''
 
 	return (
 		<div className="audio-player flex flex-col">
