@@ -18,7 +18,7 @@
 	OK - Permitir gravação de áudios
 	- Permitir gravação de vídeos
 	- Ao iniciar um áudio, certificar de que todos os outros estejam parados
-	- Áudios gravados e enviados devem ser persistidos no Minio
+	OK - Áudios gravados e enviados devem ser persistidos no Minio
 	OK - Permitir previsualizar o áudio gravado, mostrando progresso
 
 	ERROS
@@ -54,11 +54,11 @@ async function blobToBase64(blob) {
 }
 
 const storage = {
-	async store(blob) {
+	async store(blob, extension) {
 		try {
 			const formData = new FormData()
 
-			formData.append('file', blob, 'file.mp3')
+			formData.append('file', blob, `file${extension}`)
 
 			const { data } = await axios.post('http://localhost:3333/test_api/upload_minio', formData)
 
@@ -433,9 +433,13 @@ function Message({ sender, content, media, whoami, sent_at, type }) {
 
 // TUTORIAL CAMERA: https://codepen.io/vabarbosa/pen/VJByJW?editors=0010
 
-function Camera() {
+function Camera({ onConfirmPhoto }) {
+	const { addMessage, me } = useContext(GlobalContext)
+
 	const [isCameraOpen, setIsCameraOpen] = useState(false)
 	const [photoTaken, setPhotoTaken] = useState(null)
+	const [photoTakenBlob, setPhotoTakenBlob] = useState(null)
+	const [isUploading, setIsUploading] = useState(false)
 
 	async function setupCamera() {
 		if (!camStream) {
@@ -443,14 +447,12 @@ function Camera() {
 				video: true,
 				audio: false
 			})
-
-			video = document.querySelector('#chatbox-video')
 		}
+
+		video = document.querySelector('#chatbox-video')
 
 		if (typeof video.srcObject !== 'undefined') {
 			video.srcObject = camStream
-		} else {
-			video.src = URL.createObjectURL(camStream)
 		}
 
 		video.play()
@@ -464,6 +466,36 @@ function Camera() {
 
 	function handleClearPhoto() {
 		setPhotoTaken(null)
+	}
+
+	async function handleConfirmPhoto() {
+		try {
+			if(!photoTakenBlob) {
+				return
+			}
+
+			setIsUploading(true)
+			
+			const photoURL = await storage.store(photoTakenBlob, '.png')
+
+			addMessage({
+				sender: me,
+				media: photoURL,
+				type: 'image',
+				sent_at: new Date()
+			})
+
+			setPhotoTaken(null)
+			setPhotoTakenBlob(null)
+			setIsCameraOpen(false)
+
+			onConfirmPhoto()
+		} catch(e) {
+			alert('Ocorreu um erro ao enviar a imagem.')
+			console.log(e)
+		} finally {
+			setIsUploading(false)
+		}
 	}
 
 	useEffect(() => {
@@ -481,6 +513,8 @@ function Camera() {
 			ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
 
 			canvas?.classList.remove('hidden')
+
+			canvas.toBlob(setPhotoTakenBlob, 'image/png')
 		} else {
 			canvas?.classList.add('hidden')
 		}
@@ -536,25 +570,39 @@ function Camera() {
 
 				<canvas id="chatbox-camera-preview" className="w-56 h-56 object-cover hidden rounded-full self-center justify-self-center shadow-lg border-2 border-slate-200"></canvas>
 
-				<div className="grid grid-cols-3 gap-4 items-end justify-between px-4">
-					<div />
-
-					<div 
-						className="self-center bg-slate-600 cursor-pointer p-4 rounded-full text-3xl flex justify-center items-center border border-dashed border-slate-300 hover:border-solid hover:border-2"
-						onClick={takePhoto}
-					>
-						<ion-icon name="camera-outline"></ion-icon>
+				{isUploading ? (
+					<div className="w-full flex flex-col items-center">
+						<img src="spinner.svg" alt="Aguarde..." className="w-12" />
+						<span className="text-sm">Enviando...</span>
 					</div>
+				) : (
+					<div className="grid grid-cols-3 gap-4 items-center justify-center px-4">
+						{photoTaken ? (
+							<div 
+								className="justify-self-center bg-slate-600 cursor-pointer p-2 w-fit rounded-full text-xl flex justify-center items-center border border-slate-300 hover:border-2"
+								onClick={handleClearPhoto}
+							>
+								<ion-icon name="trash-outline"></ion-icon>
+							</div>
+						) : <div />}
 
-					{photoTaken ? (
 						<div 
-							className="self-center bg-slate-600 cursor-pointer p-2 w-fit rounded-full text-xl flex justify-center items-center border border-slate-300 hover:border-2"
-							onClick={handleClearPhoto}
+							className="bg-slate-600 cursor-pointer p-4 rounded-full text-3xl flex justify-center items-center border border-dashed border-slate-300 hover:border-solid hover:border-2"
+							onClick={takePhoto}
 						>
-							<ion-icon name="trash-outline"></ion-icon>
+							<ion-icon name="camera-outline"></ion-icon>
 						</div>
-					) : <div />}
-				</div>
+
+						{photoTaken ? (
+							<div 
+								className="justify-self-center bg-slate-600 cursor-pointer p-2 w-fit rounded-full text-xl flex justify-center items-center border border-slate-300 hover:border-2"
+								onClick={handleConfirmPhoto}
+							>
+								<ion-icon name="checkmark-outline"></ion-icon>
+							</div>
+						) : <div />}
+					</div>
+				)}
 			</div>
 		</>
 	)
@@ -580,23 +628,21 @@ function Input() {
 	const [isCameraMenuOpen, setIsCameraMenuOpen] = useState(false)
 
 	async function handleSend() {
-		const content = inputRef.current.value
-
-		if(!content && !audioBlob) {
-			return
-		}
-
+		let content
 		let recordingURL
 
-		if(audioBlob) {
-			recordingURL = await storage.store(audioBlob)
+		if(!audioBlob) {
+			content = inputRef.current.value
+		} else {
+			recordingURL = await storage.store(audioBlob, '.mp3')
 		}
 
 		addMessage({
 			sender: me,
 			content,
 			media: recordingURL,
-			type: audioBlob ? 'audio' : 'text'
+			type: audioBlob ? 'audio' : 'text',
+			sent_at: new Date()
 		})
 
 		setTextContent('')
@@ -715,16 +761,6 @@ function Input() {
 		}
 	}, [isRecordedAudioPlaying])
 
-	useEffect(() => {
-		// const camera = document.querySelector('#chatbox-container .camera-menu')
-
-		// if(isCameraMenuOpen) {
-		// 	camera.classList.replace('animate__fadeOutDown', 'animate__fadeInUp')
-		// } else {
-		// 	camera.classList.replace('animate__fadeInUp', 'animate__fadeOutDown')
-		// }
-	}, [isCameraMenuOpen])
-
 	// TODO: Temporary
 	function simulateAnswer() {
 		setTimeout(() => {
@@ -805,7 +841,7 @@ function Input() {
 
 	return (
 		<>
-			{isCameraMenuOpen && <Camera />}
+			{isCameraMenuOpen && <Camera onConfirmPhoto={() => { setIsCameraMenuOpen(false) }} />}
 
 			<div id="chatbox-input" className="h-10 flex justify-between items-center bg-slate-100 dark:bg-slate-700 pr-2 z-20 shadow-lg">
 				{isTextInputVisible && (
