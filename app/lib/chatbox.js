@@ -13,13 +13,15 @@
 	OK - Personalizar exibição da tag audio
 	OK - Permitir acelerar o áudio
 	OK - Tratar quando o nome do participante é muito extenso (usar ellipsis)
-	- Exportar conversa para texto único (copiar para área de transferência)
-	- Permitir upload de imagens
 	OK - Permitir gravação de áudios
-	- Permitir gravação de vídeos
-	- Ao iniciar um áudio, certificar de que todos os outros estejam parados
+	OK - Corrigir proporção do vídeo capturado pela cÂmera
 	OK - Áudios gravados e enviados devem ser persistidos no Minio
 	OK - Permitir previsualizar o áudio gravado, mostrando progresso
+	OK - Permitir upload de imagens
+	- Exportar conversa para texto único (copiar para área de transferência)
+	- Permitir gravação de vídeos
+	- Ao iniciar um áudio, certificar de que todos os outros estejam parados
+	- Permitir exclusão de mensagens
 
 	ERROS
 	- O menu não consegue reativar os sons para novas mensagens
@@ -28,15 +30,20 @@
 
 const { createContext, useState, useContext, useEffect, useRef, useCallback } = React
 const { format, startOfDay, addSeconds } = dateFns
+const { createFFmpeg, fetchFile } = FFmpeg
 
 const animations = {
 	balloonIn: 'animate__animated animate__flipInX',
 	avatarIn: 'animate__animated animate__bounceIn'
 }
 
-let recordingChunks = []
+let audioRecordingChunks = []
+let videoRecordingChunks = []
 let camStream
+let audioStream
 let video
+let videoRecorder
+let audioRecorder
 
 // TODO: Temporary
 async function blobToBase64(blob) {
@@ -51,6 +58,10 @@ async function blobToBase64(blob) {
 
         reader.onerror = reject
     })
+}
+
+function extname(fileName) {
+	return fileName.split('.').at(-1)
 }
 
 const storage = {
@@ -150,14 +161,14 @@ function GlobalProvider({ children }) {
 		// 	type: 'audio',
 		// 	content: 'Este é o áudio da Syndi'
 		// },
-		{
-			id: 6,
-			sender: participants[0],
-			media: 'https://integrare-os-minio.nyr4mj.easypanel.host/integrare-os/2e12f34e-0cc9-4f81-88b0-5e731a32861a..MP3',
-			sent_at: new Date('2024-05-30 08:12:00'),
-			type: 'audio',
-			content: 'Este é meu áudio'
-		}
+		// {
+		// 	id: 6,
+		// 	sender: participants[0],
+		// 	media: 'https://integrare-os-minio.nyr4mj.easypanel.host/integrare-os/2e12f34e-0cc9-4f81-88b0-5e731a32861a..MP3',
+		// 	sent_at: new Date('2024-05-30 08:12:00'),
+		// 	type: 'audio',
+		// 	content: 'Este é meu áudio'
+		// }
 	])
 	const [mediaDetail, setMediaDetail] = useState(null)
 	const [answeringText, setAnsweringText] = useState(null)
@@ -244,13 +255,8 @@ function Header() {
 	const { title, him, setIsMinimized, isMinimized, setIsMenuVisible, isSoundEnable } = useContext(GlobalContext)
 
 	return (
-		<div id="chatbox-header" className="bg-slate-100 dark:bg-slate-700 h-11 flex justify-between items-center pl-3 pr-2 text-sm text-slate-600 dark:text-slate-200 rounded-t-md z-20">
-			<div 
-				className="flex gap-3 items-center"
-				// onMouseEnter={() => {
-				// 	setIsMenuVisible(false)
-				// }}
-			>
+		<div id="chatbox-header" className="bg-slate-100 dark:bg-slate-700 h-11 flex justify-between items-center pl-3 pr-2 text-sm text-slate-600 dark:text-slate-200 rounded-t-md z-20 select-none">
+			<div className="flex gap-3 items-center">
 				<img 
 					src={him.avatar} 
 					alt={him.name} 
@@ -354,6 +360,27 @@ function Balloon({ participant, content, media, whoami, sent_at, type }) {
 					)}
 				</div>
 			)
+			case 'file': return (
+				<div 
+					className={`
+						chatbox-balloon-content cursor-pointer text-slate-800 dark:text-slate-200 pt-2
+						${whoami === 'me' ? 'text-slate-700 dark:text-slate-200' : 'text-slate-700 dark:text-slate-600'}
+					`}
+				>
+					<a href={media} target="_blank" className="dark:text-sky-400 text-sky-600 hover:font-semibold flex items-center gap-1">
+						<div className="text-2xl">
+							<ion-icon name="document-outline"></ion-icon>
+						</div>
+						<span className="text-sm">
+							Baixar arquivo
+						</span>
+					</a>
+					
+					{content && (
+						<p className="mt-2">{content}</p>
+					)}
+				</div>
+			)
 			default: return (
 				<div 
 					className={`
@@ -412,7 +439,7 @@ function Message({ sender, content, media, whoami, sent_at, type }) {
 	return (
 		<div className="chatbox-message flex gap-3">
 			{whoami === 'him' && (
-				<img src={sender.avatar} alt={sender.name} className={`h-8 w-8 rounded-full shadow-md ${animations.avatarIn}`} />
+				<img src={sender.avatar} alt={sender.name} className={`h-8 w-8 rounded-full shadow-md select-none ${animations.avatarIn}`} />
 			)}
 			
 			<Balloon 
@@ -425,21 +452,34 @@ function Message({ sender, content, media, whoami, sent_at, type }) {
 			/>
 
 			{whoami === 'me' && (
-				<img src={sender.avatar} alt={sender.name} className={`h-8 w-8 rounded-full shadow-md ${animations.avatarIn}`} />
+				<img src={sender.avatar} alt={sender.name} className={`h-8 w-8 rounded-full shadow-md select-none ${animations.avatarIn}`} />
 			)}
 		</div>
 	)
 }
 
-// TUTORIAL CAMERA: https://codepen.io/vabarbosa/pen/VJByJW?editors=0010
+function Camera({ onConfirm, onFocus, onDismiss, disabled }) {
+	// TUTORIAL CAMERA: https://codepen.io/vabarbosa/pen/VJByJW?editors=0010
 
-function Camera({ onConfirmPhoto }) {
 	const { addMessage, me } = useContext(GlobalContext)
 
-	const [isCameraOpen, setIsCameraOpen] = useState(false)
+	const previewVideoRef = useRef()
+	const previewAudioRef = useRef()
+
+	const [isCameraMenuOpen, setIsCameraMenuOpen] = useState(false)
+	const [cameraOpen, setCameraOpen] = useState(null)
+	const [isUploading, setIsUploading] = useState(false)
+	
+	// Photo
 	const [photoTaken, setPhotoTaken] = useState(null)
 	const [photoTakenBlob, setPhotoTakenBlob] = useState(null)
-	const [isUploading, setIsUploading] = useState(false)
+
+	// Video
+	const [videoTaken, setVideoTaken] = useState(null)
+	const [isRecordingVideo, setIsRecordingVideo] = useState(null)
+	const [isRecordedVideoPlaying, setIsRecordedVideoPlaying] = useState(null)
+	const [videoTakenBlob, setVideoTakenBlob] = useState(null)
+	const [finalVideo, setFinalVideo] = useState(null)
 
 	async function setupCamera() {
 		if (!camStream) {
@@ -449,6 +489,10 @@ function Camera({ onConfirmPhoto }) {
 			})
 		}
 
+		if(!audioStream) {
+			audioStream = await navigator.mediaDevices.getUserMedia({ audio: true })
+		}
+
 		video = document.querySelector('#chatbox-video')
 
 		if (typeof video.srcObject !== 'undefined') {
@@ -456,6 +500,59 @@ function Camera({ onConfirmPhoto }) {
 		}
 
 		video.play()
+
+		// Setup video recording
+		videoRecorder = new MediaRecorder(camStream)
+  		audioRecorder = new MediaRecorder(audioStream)
+
+		audioRecordingChunks = []
+		videoRecordingChunks = []
+
+		videoRecorder.ondataavailable = e => {
+			videoRecordingChunks.push(e.data)
+		}
+		  
+		audioRecorder.ondataavailable = e => {
+			audioRecordingChunks.push(e.data)
+		}
+		  
+		audioRecorder.onstop = () => {
+			const blob = new Blob(audioRecordingChunks, {
+				type: 'audio/mp3; codecs=opus'
+			})
+			
+			audioRecordingChunks = []
+			
+			const audioURL = window.URL.createObjectURL(blob)
+
+			previewAudioRef.current.src = audioURL
+			
+			previewAudioRef.current.play()
+		}
+		  
+		videoRecorder.onstop = () => {
+			const blob = new Blob(videoRecordingChunks, {
+				type: 'video/mp4'
+			})
+
+			setVideoTakenBlob(blob)
+			
+			videoRecordingChunks = []
+		
+			const videoURL = window.URL.createObjectURL(blob)
+			
+			setVideoTaken(videoURL)
+
+			setIsRecordedVideoPlaying(true)
+		}
+	}
+
+	function resetCamera() {
+		video = document.querySelector('#chatbox-video')
+
+		if (typeof video?.srcObject !== 'undefined') {
+			video.srcObject = null
+		}
 	}
 
 	function takePhoto() {
@@ -464,50 +561,124 @@ function Camera({ onConfirmPhoto }) {
 		}
 	}
 
-	function handleClearPhoto() {
+	function handleClear() {
 		setPhotoTaken(null)
+		setVideoTaken(null)
+		setIsRecordedVideoPlaying(false)
 	}
 
-	async function handleConfirmPhoto() {
+	async function handleConfirm() {
 		try {
-			if(!photoTakenBlob) {
+			if(!photoTakenBlob && !videoTakenBlob) {
 				return
 			}
 
 			setIsUploading(true)
 			
-			const photoURL = await storage.store(photoTakenBlob, '.png')
+			if(photoTakenBlob) {
+				const photoURL = await storage.store(photoTakenBlob, '.png')
 
-			addMessage({
-				sender: me,
-				media: photoURL,
-				type: 'image',
-				sent_at: new Date()
-			})
+				addMessage({
+					sender: me,
+					media: photoURL,
+					type: 'image',
+					sent_at: new Date()
+				})
+			}
+
+			if(videoTakenBlob) {
+				const videoURL = await storage.store(videoTakenBlob, '.mp4')
+
+				addMessage({
+					sender: me,
+					media: videoURL,
+					type: 'video',
+					sent_at: new Date()
+				})
+			}
 
 			setPhotoTaken(null)
-			setPhotoTakenBlob(null)
-			setIsCameraOpen(false)
+			setVideoTaken(null)
 
-			onConfirmPhoto()
+			setPhotoTakenBlob(null)
+			setVideoTakenBlob(null)
+
+			setCameraOpen(null)
+			setIsCameraMenuOpen(false)
+
+			onConfirm()
 		} catch(e) {
-			alert('Ocorreu um erro ao enviar a imagem.')
+			alert('Ocorreu um erro ao enviar a imagem ou vídeo.')
 			console.log(e)
 		} finally {
 			setIsUploading(false)
 		}
 	}
 
-	useEffect(() => {
-		if(isCameraOpen) {
-			setupCamera()
+	function handleStartVideoRecording() {
+		setIsRecordingVideo(true)
+
+		videoRecorder.start()
+		audioRecorder.start()
+	}
+
+	function handleStopVideoRecording() {
+		setIsRecordingVideo(false)
+		videoRecorder.stop()
+		audioRecorder.stop()
+	}
+
+	function handlePauseVideoPreview() {
+		if(isRecordedVideoPlaying) {
+			previewVideoRef.current.pause()
+			previewAudioRef.current.pause()
 		}
-	}, [isCameraOpen])
+
+		setIsRecordedVideoPlaying(old => !old)
+	}
+
+	function handleContinueVideoPreview() {
+		if(!isRecordedVideoPlaying) {
+			previewVideoRef.current.play()
+			previewAudioRef.current.play()
+		}
+
+		setIsRecordedVideoPlaying(old => !old)
+	}
+
+	async function mergeVideoAndAudio() {
+		const ffmpeg = createFFmpeg({ log: true })
+		
+		await ffmpeg.load()
+
+		ffmpeg.FS('writeFile', 'video.mp4', await fetchFile(videoFile))
+		ffmpeg.FS('writeFile', 'audio.mp3', await fetchFile(audioFile))
+		
+		await ffmpeg.run('-i', 'video.mp4', '-i', 'audio.mp3', '-c:v', 'copy', '-c:a', 'aac', 'output.mp4')
+
+		const data = ffmpeg.FS('readFile', 'output.mp4')
+
+		const videoBlob = new Blob([data.buffer], { type: 'video/mp4' })
+		const videoUrl = URL.createObjectURL(videoBlob)
+
+		setFinalVideo(videoUrl)
+	}
+
+	useEffect(() => {
+		if(cameraOpen) {
+			setupCamera()
+		} else {
+			resetCamera()
+		}
+	}, [cameraOpen])
 
 	useEffect(() => {
 		const canvas = document.querySelector('#chatbox-camera-preview')
 
 		if(photoTaken) {
+			canvas.width = video.videoWidth
+			canvas.height = video.videoHeight
+
 			const ctx = canvas.getContext('2d')
 
 			ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
@@ -520,101 +691,190 @@ function Camera({ onConfirmPhoto }) {
 		}
 	}, [photoTaken])
 
+	useEffect(() => {
+		if(videoTaken) {
+        	mergeVideoAndAudio()
+		}
+	}, [videoTaken])
+
 	return (
 		<>
-			<div className={`
-				camera-menu bg-slate-700 w-fit h-fit absolute bottom-9 right-0 mx-4 mb-2 z-50 rounded-md py-3 px-2 flex justify-between shadow-lg 
-				animate__animated animate__faster
-			`}>
-				<div className="cursor-pointer flex flex-col items-center hover:bg-slate-600 py-2 px-2 rounded-md w-20">
-					<div className="text-3xl">
-						<ion-icon name="image-outline"></ion-icon>
-					</div>
-					<span className="text-[0.7rem]">Galeria</span>
-				</div>
+			<div 
+				className={`
+					my-2 rounded-md p-1 flex items-center transition-colors text-2xl text-slate-800 dark:text-slate-300
+					${disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer opacity-60 hover:opacity-100 hover:bg-slate-300 dark:hover:bg-slate-600'}
+				`}
+				onClick={() => { 
+					setIsCameraMenuOpen(old => !old) 
 
-				<div 
-					className="cursor-pointer flex flex-col items-center hover:bg-slate-600 py-2 px-2 rounded-md w-20" 
-					onClick={() => { setIsCameraOpen(true) }}
-				>
-					<div className="text-3xl">
-						<ion-icon name="camera-outline"></ion-icon>
-					</div>
-					<span className="text-[0.7rem]">Tirar foto</span>
-				</div>
-
-				<div className="cursor-pointer flex flex-col items-center hover:bg-slate-600 py-2 px-2 rounded-md w-20">
-					<div className="text-3xl">
-						<ion-icon name="videocam-outline"></ion-icon>
-					</div>
-					<span className="text-[0.7rem]">Gravar vídeo</span>
-				</div>
+					if(isCameraMenuOpen) {
+						onDismiss()
+					} else {
+						onFocus()
+					}
+				}}
+			>
+				<ion-icon name="camera-outline"></ion-icon>
 			</div>
 
-			<div className={`
-				camera-overlay bg-slate-800/80 w-full h-full absolute top-0 left-0 z-50 p-4 flex flex-col gap-4 
-				${isCameraOpen ? '' : 'hidden'}`}
-			>
-				<div 
-					className="self-end hover:bg-slate-700 cursor-pointer p-2 pb-0 h-fit rounded-md text-3xl" 
-					onClick={() => { setIsCameraOpen(false) }}
-				>
-					<ion-icon name="close-outline"></ion-icon>
-				</div>
-				
-				<video 
-					id="chatbox-video" 
-					className={`w-56 h-56 object-cover rounded-full self-center justify-self-center shadow-lg border-2 border-slate-200 ${photoTaken ? 'hidden' : ''}
-				`}>
-				</video>
-
-				<canvas id="chatbox-camera-preview" className="w-56 h-56 object-cover hidden rounded-full self-center justify-self-center shadow-lg border-2 border-slate-200"></canvas>
-
-				{isUploading ? (
-					<div className="w-full flex flex-col items-center">
-						<img src="spinner.svg" alt="Aguarde..." className="w-12" />
-						<span className="text-sm">Enviando...</span>
-					</div>
-				) : (
-					<div className="grid grid-cols-3 gap-4 items-center justify-center px-4">
-						{photoTaken ? (
-							<div 
-								className="justify-self-center bg-slate-600 cursor-pointer p-2 w-fit rounded-full text-xl flex justify-center items-center border border-slate-300 hover:border-2"
-								onClick={handleClearPhoto}
-							>
-								<ion-icon name="trash-outline"></ion-icon>
-							</div>
-						) : <div />}
-
+			{isCameraMenuOpen && (
+				<>
+					<div className={`
+						camera-menu bg-slate-100 dark:bg-slate-700 w-fit h-fit absolute bottom-9 right-0 mx-4 mb-2 z-50 rounded-md pb-3 pt-1 px-2 flex flex-col shadow-lg select-none text-slate-800 dark:text-slate-200
+						animate__animated animate__faster
+					`}>
 						<div 
-							className="bg-slate-600 cursor-pointer p-4 rounded-full text-3xl flex justify-center items-center border border-dashed border-slate-300 hover:border-solid hover:border-2"
-							onClick={takePhoto}
+							className="self-end hover:bg-slate-200 dark:hover:bg-slate-600 cursor-pointer p-2 pb-0 h-fit rounded-md text-xl" 
+							onClick={() => { 
+								setIsCameraMenuOpen(false)
+
+								onDismiss()
+							}}
 						>
-							<ion-icon name="camera-outline"></ion-icon>
+							<ion-icon name="close-outline"></ion-icon>
 						</div>
 
-						{photoTaken ? (
+						<div className="flex justify-between items-center">
 							<div 
-								className="justify-self-center bg-slate-600 cursor-pointer p-2 w-fit rounded-full text-xl flex justify-center items-center border border-slate-300 hover:border-2"
-								onClick={handleConfirmPhoto}
+								className="cursor-pointer flex flex-col items-center hover:bg-slate-200 dark:hover:bg-slate-800 py-2 px-2 rounded-md w-20" 
+								onClick={() => { setCameraOpen('photo') }}
 							>
-								<ion-icon name="checkmark-outline"></ion-icon>
+								<div className="text-3xl">
+									<ion-icon name="camera-outline"></ion-icon>
+								</div>
+								<span className="text-[0.7rem]">Tirar foto</span>
 							</div>
-						) : <div />}
+
+							<div
+								className="cursor-pointer flex flex-col items-center hover:bg-slate-200 dark:hover:bg-slate-800 py-2 px-2 rounded-md w-20"
+								onClick={() => { setCameraOpen('video') }}
+							>
+								<div className="text-3xl">
+									<ion-icon name="videocam-outline"></ion-icon>
+								</div>
+								<span className="text-[0.7rem]">Gravar vídeo</span>
+							</div>
+						</div>
 					</div>
-				)}
-			</div>
+
+					<div className={`
+						camera-overlay bg-slate-800/80 w-full h-full absolute top-0 left-0 z-50 p-4 flex flex-col gap-4 
+						${cameraOpen ? '' : 'hidden'}`}
+					>
+						<div 
+							className="self-end hover:bg-slate-700 cursor-pointer p-2 pb-0 h-fit rounded-md text-3xl" 
+							onClick={() => { 
+								setCameraOpen(null)
+								handleClear()
+							}}
+						>
+							<ion-icon name="close-outline"></ion-icon>
+						</div>
+					
+						<video 
+							id="chatbox-video"
+							className={`
+								w-56 h-56 object-cover rounded-full self-center justify-self-center shadow-lg border-2 border-slate-200
+								${photoTaken || videoTaken ? 'hidden' : ''}
+							`}
+						>
+						</video>
+
+						{finalVideo && (
+							<video 
+								src={finalVideo}
+								autoPlay
+								className={`
+									w-56 h-56 object-cover rounded-full self-center justify-self-center shadow-lg border-2 border-slate-200
+								`}
+							>
+							</video>
+						)}
+
+						{videoTaken && !finalVideo && (
+							<>
+								<video 
+									src={videoTaken}
+									autoPlay
+									ref={previewVideoRef}
+									onClick={handlePauseVideoPreview}
+									className="w-56 h-56 object-cover rounded-full self-center justify-self-center shadow-lg border-2 border-slate-200"
+								>
+								</video>
+
+								{!isRecordedVideoPlaying && (
+									<div 
+										className="flex justify-center items-center bg-slate-100/50 rounded-full absolute top-[46%] left-1/2 cursor-pointer text-[32px] w-16 h-16 -translate-x-1/2 -translate-y-1/2 hover:opacity-60"
+										onClick={handleContinueVideoPreview}
+									>
+										<ion-icon name="play-outline"></ion-icon>
+									</div>
+								)}
+
+								<audio ref={previewAudioRef}></audio>
+							</>
+						)}
+
+						<canvas id="chatbox-camera-preview" className="w-56 h-56 object-cover hidden rounded-full self-center justify-self-center shadow-lg border-2 border-slate-200"></canvas>
+
+						{isUploading ? (
+							<div className="w-full flex flex-col items-center">
+								<img src="spinner.svg" alt="Aguarde..." className="w-12" />
+								<span className="text-sm">Enviando...</span>
+							</div>
+						) : (
+							<div className="grid grid-cols-3 gap-4 items-center justify-center px-4">
+								{photoTaken || videoTaken ? (
+									<div 
+										className="justify-self-center bg-slate-600 cursor-pointer p-2 w-fit rounded-full text-xl flex justify-center items-center border border-slate-300 hover:border-2"
+										onClick={handleClear}
+									>
+										<ion-icon name="trash-outline"></ion-icon>
+									</div>
+								) : <div />}
+
+								{cameraOpen === 'photo' && (
+									<div 
+										className="bg-slate-600 cursor-pointer p-4 rounded-full text-3xl flex justify-center items-center border border-dashed border-slate-300 hover:border-solid hover:border-2"
+										onClick={takePhoto}
+									>
+										<ion-icon name="camera-outline"></ion-icon>
+									</div>
+								)} 
+								
+								{cameraOpen === 'video' && (
+									<div 
+										className="bg-slate-600 cursor-pointer p-4 rounded-full text-3xl flex justify-center items-center border border-dashed border-slate-300 hover:border-solid hover:border-2"
+										onClick={isRecordingVideo ? handleStopVideoRecording : handleStartVideoRecording}
+									>
+										{isRecordingVideo ? (
+											<ion-icon name="stop-outline"></ion-icon>
+										) : (
+											<ion-icon name="videocam-outline"></ion-icon>
+										)}
+									</div>
+								)}
+
+								{photoTaken || videoTaken ? (
+									<div 
+										className="justify-self-center bg-slate-600 cursor-pointer p-2 w-fit rounded-full text-xl flex justify-center items-center border border-slate-300 hover:border-2"
+										onClick={handleConfirm}
+									>
+										<ion-icon name="checkmark-outline"></ion-icon>
+									</div>
+								) : <div />}
+							</div>
+						)}
+					</div>
+				</>
+			)}
 		</>
 	)
 }
 
-function Input() {
-	const inputRef = useRef()
-	const { addMessage, me, him, setAnsweringText } = useContext(GlobalContext)
+function Microphone({ onConfirmAudio, onFocus, onDismiss, disabled }) {
+	const { addMessage, me } = useContext(GlobalContext)
 
-	const [textContent, setTextContent] = useState('')
-
-	// Audio states
 	const [audio, setAudio] = useState(null)
 	const [audioBlob, setAudioBlob] = useState(null)
 	const [mediaRecorder, setMediaRecorder] = useState(null)
@@ -622,36 +882,7 @@ function Input() {
 	const [isAudioPreviewing, setIsAudioPreviewing] = useState(false)
 	const [isRecordedAudioPlaying, setIsRecordedAudioPlaying] = useState(false)
 	const [recordingDuration, setRecordingDuration] = useState(0)
-	const [previewDuration, setPreviewDuration] = useState(0)
-	
-	// Video states
-	const [isCameraMenuOpen, setIsCameraMenuOpen] = useState(false)
-
-	async function handleSend() {
-		let content
-		let recordingURL
-
-		if(!audioBlob) {
-			content = inputRef.current.value
-		} else {
-			recordingURL = await storage.store(audioBlob, '.mp3')
-		}
-
-		addMessage({
-			sender: me,
-			content,
-			media: recordingURL,
-			type: audioBlob ? 'audio' : 'text',
-			sent_at: new Date()
-		})
-
-		setTextContent('')
-		setAudio(null)
-		setAudioBlob(null)
-
-		// TODO: Temporary
-		// simulateAnswer()
-	}
+	const [previewDuration, setPreviewDuration] = useState(null)
 
 	async function checkMicrophonePermissision() {
 		if(navigator.mediaDevices && navigator.mediaDevices.getUserMedia){
@@ -660,17 +891,17 @@ function Input() {
 			const recorder = new MediaRecorder(stream)
 
 			recorder.ondataavailable = e => {
-				recordingChunks.push(e.data)
+				audioRecordingChunks.push(e.data)
 			}
 
 			recorder.onstop = () => {
-				const blob = new Blob(recordingChunks, {
+				const blob = new Blob(audioRecordingChunks, {
 					type: 'audio/mp3; codecs=opus'
 				})
 
 				setAudioBlob(blob)
 
-				recordingChunks = []
+				audioRecordingChunks = []
 
 				const audioURL = window.URL.createObjectURL(blob)
 
@@ -696,7 +927,9 @@ function Input() {
 	}
 
 	function handleRecordStart() {
-		setPreviewDuration(0)
+		onFocus()
+		
+		setPreviewDuration(null)
 		setRecordingDuration(0)
 		setIsAudioRecording(true)
 
@@ -705,30 +938,56 @@ function Input() {
 
 	function handleRecordStop() {
 		setIsAudioRecording(false)
+
 		mediaRecorder.stop()
 	}
 
-	function handleAttachFile() {
-		alert('NÃO IMPLEMENTADO')
+	function handleDismiss() {
+		setAudio(null)
+		setIsAudioPreviewing(false)
+		onDismiss()
+	}
+
+	function toggleStartStopPreview() {
+		if(isRecordedAudioPlaying) {
+			audio.pause()
+			setIsAudioPreviewing(false)
+		} else {
+			audio.currentTime = 0
+			audio.play()
+			setPreviewDuration(0)
+			setIsAudioPreviewing(true)
+		}
+	}
+
+	async function handleConfirmAudio() {
+		if(!audioBlob) {
+			return
+		}
+
+		const recordingURL = await storage.store(audioBlob, '.mp3')
+
+		addMessage({
+			sender: me,
+			media: recordingURL,
+			type: audioBlob ? 'audio' : 'text',
+			sent_at: new Date()
+		})
+
+		setAudio(null)
+		setAudioBlob(null)
+		onConfirmAudio()
 	}
 
 	useEffect(() => {
-		inputRef.current.addEventListener('keyup', e => {
-			if(e.key === 'Enter') {
-				handleSend()
-			}
-		})
-
 		checkMicrophonePermissision()
-	}, [inputRef])
+	}, [])
 
 	useEffect(() => {
 		let recordingInterval
 
 		if(isAudioRecording) {
 			recordingInterval = setInterval(() => {
-				console.log('recordingDuration', recordingDuration)
-
 				setRecordingDuration(old => old + 1)
 			}, 1000)
 		}
@@ -756,10 +1015,221 @@ function Input() {
 
 	useEffect(() => {
 		if(!isRecordedAudioPlaying) {
-			setPreviewDuration(0)
+			setPreviewDuration(null)
 			setIsAudioPreviewing(false)
 		}
 	}, [isRecordedAudioPlaying])
+
+	const formattedAudioDuration = format(addSeconds(startOfDay(new Date()), recordingDuration), 'mm:ss')
+	const formattedAudioPreviewDuration = format(addSeconds(startOfDay(new Date()), previewDuration), 'mm:ss')
+	const previewDurationPercentage = previewDuration * 100 / recordingDuration
+	const isAudioInputVisible = isAudioRecording || audio
+	const isAudioOptionsVisible = audio
+
+	return (
+		<div className="h-10 flex justify-between items-center bg-slate-100 dark:bg-slate-700 z-20 text-slate-800 dark:text-slate-100 select-none">
+			{isAudioInputVisible && (
+				<div className="flex flex-col w-full pl-2">
+					<div className={`flex justify-between gap-14 text-xs mt-2 opacity-60 p-0.5 ${isAudioPreviewing ? '' : 'mb-2'}`}>
+						{previewDuration !== null ? (
+							<div className="flex items-center">
+								{formattedAudioPreviewDuration}
+							</div>
+						) : <div />}
+
+						{recordingDuration > 0 && (
+							<div className="flex items-center">
+								{formattedAudioDuration}
+							</div>
+						)}
+					</div>
+
+					{isAudioPreviewing && (
+						<div className="audio-preview-progress border border-slate-500 rounded-sm h-1 w-full">
+							<div className={`relative transition-all w-[${previewDurationPercentage}%] bg-sky-500 h-1`}></div>
+						</div>
+					)}
+				</div>
+			)}
+
+			{isAudioOptionsVisible && !isAudioRecording && (
+				<>
+					<div 
+						className={`
+							my-2 opacity-60 hover:opacity-100 hover:bg-slate-300 dark:hover:bg-slate-600 rounded-md p-1 flex items-center transition-colors cursor-pointer
+							${isRecordedAudioPlaying ? 'text-xl' : 'text-2xl'}
+						`}
+						onClick={toggleStartStopPreview}
+					>
+						<ion-icon name={isRecordedAudioPlaying ? 'stop-outline' : 'play-outline'}></ion-icon>
+					</div>
+
+					<div 
+						className="my-2 opacity-60 hover:opacity-100 hover:bg-slate-300 dark:hover:bg-slate-600 rounded-md p-1 flex items-center transition-colors text-xl cursor-pointer"
+						onClick={handleDismiss}
+					>
+						<ion-icon name="trash-outline"></ion-icon>
+					</div>
+				</>
+			)}
+
+			<div 
+				className={`
+					my-2 hover:bg-slate-300 dark:hover:bg-slate-600 rounded-md p-1 flex items-center transition-colors text-2xl text-slate-800 dark:text-slate-300
+					${disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer opacity-60 hover:opacity-100'}
+				`}
+				onClick={isAudioRecording ? handleRecordStop : handleRecordStart}
+			>
+				<ion-icon name={isAudioRecording ? 'stop-outline' : 'mic-outline'}></ion-icon>
+			</div>
+
+			{isAudioOptionsVisible && !isAudioRecording && (
+				<div 
+					className="my-2 hover:bg-slate-300 dark:hover:bg-slate-600 rounded-md p-1 flex items-center transition-colors text-2xl cursor-pointer opacity-60 hover:opacity-100"
+					onClick={handleConfirmAudio}
+				>
+					<ion-icon name="send-outline"></ion-icon>
+				</div>
+			)}
+		</div>
+	)
+}
+
+function FileAttach({ onFocus, onDismiss, onConfirmFile, disabled }) {
+	const { addMessage, me } = useContext(GlobalContext)
+
+	const [isActive, setIsActive] = useState(false)
+	const [file, setFile] = useState(null)
+
+	function handleOpen() {
+		setIsActive(true)
+
+		onFocus()
+	}
+
+	function handleDismiss() {
+		setIsActive(false)
+
+		setFile(null)
+
+		onDismiss()
+	}
+
+	async function handleConfirmFile() {
+		const blob = new Blob([file], { type: file.type })
+		const ext = extname(file.name)
+
+		const fileURL = await storage.store(blob, ext)
+
+		addMessage({
+			sender: me,
+			media: fileURL,
+			type: 'file',
+			sent_at: new Date()
+		})
+		
+		setIsActive(false)
+		
+		setFile(null)
+
+		onConfirmFile()
+	}
+
+	return (
+		<>
+			{isActive && (
+				<div className="mx-2">
+					<input 
+						type="file" 
+						className="hidden" 
+						id="chatbox-file-field" 
+						onChange={e => { 
+							setFile(e.target.files?.[0] || null) 
+						}} 
+					/>
+
+					{file ? (
+						<label htmlFor="chatbox-file-field" className="p-2 bg-slate-300 hover:bg-slate-300/60 dark:bg-slate-800 dark:hover:bg-slate-800/60 cursor-pointer rounded-md text-xs block text-ellipsis whitespace-nowrap overflow-hidden w-52 text-slate-600 dark:text-slate-300">
+							{file.name}
+						</label>
+					) : (
+						<label htmlFor="chatbox-file-field" className="p-2 bg-slate-300 hover:bg-slate-300/60 dark:bg-slate-800 dark:hover:bg-slate-800/60 cursor-pointer rounded-md w-full text-sm text-slate-600 dark:text-slate-300">
+							Selecione o arquivo
+						</label>
+					)}
+				</div>
+			)}
+
+			<div className="flex gap-1">
+				<div 
+					className={`
+						my-2 hover:bg-slate-300 dark:hover:bg-slate-600 rounded-md p-1 flex items-center transition-colors text-2xl text-slate-800 dark:text-slate-300
+						${disabled ? 'opacity-50 cursor-not-allowed' : 'opacity-60 hover:opacity-100 cursor-pointer'}	
+					`}
+					onClick={isActive ? handleDismiss : handleOpen}
+				>
+					<ion-icon name="attach-outline"></ion-icon>
+				</div>
+
+				{file && (
+					<div 
+						className="my-2 hover:bg-slate-300 dark:hover:bg-slate-600 rounded-md p-1 flex items-center transition-colors text-xl cursor-pointer opacity-60 hover:opacity-100 text-slate-800 dark:text-slate-300"
+						onClick={handleConfirmFile}
+					>
+						<ion-icon name="send-outline"></ion-icon>
+					</div>
+				)}
+			</div>
+		</>
+	)
+}
+
+function Input() {
+	const inputRef = useRef()
+	const { addMessage, me, him, setAnsweringText } = useContext(GlobalContext)
+
+	const [textContent, setTextContent] = useState('')
+	const [inputMode, setInputMode] = useState('')
+
+	async function handleSend() {
+		let content = inputRef.current.value
+
+		if(!content) {
+			return
+		}
+
+		addMessage({
+			sender: me,
+			content,
+			type: 'text',
+			sent_at: new Date()
+		})
+
+		setTextContent('')
+
+		// TODO: Temporary
+		// simulateAnswer()
+	}
+
+	useEffect(() => {
+		if(!inputMode) {
+			function send(e) {
+				if(e.key === 'Enter') {
+					handleSend()
+				}
+			}
+
+			inputRef.current.addEventListener('keyup', send)
+
+			return () => {
+				inputRef.current?.removeEventListener('keyup', send)
+			}
+		}
+	}, [inputRef, inputMode])
+
+	useEffect(() => {
+		console.log('inputMode', inputMode || 'default')
+	}, [inputMode])
 
 	// TODO: Temporary
 	function simulateAnswer() {
@@ -803,140 +1273,74 @@ function Input() {
 		}, 1500)
 	}
 
-	function getEnableActions() {
-		return textContent || audio ? [
-			{
-				icon: 'send-outline',
-				function: handleSend
-			}
-		] : [
-			{
-				icon: 'attach-outline',
-				function: handleAttachFile,
-				disabled: isAudioRecording || isCameraMenuOpen
-			}
-		]
-	}
-
-	function toggleStartStop() {
-		if(isRecordedAudioPlaying) {
-			audio.pause()
-			setIsAudioPreviewing(false)
-		} else {
-			audio.play()
-			setPreviewDuration(0)
-			setIsAudioPreviewing(true)
-		}
-	}
-
-	const actions = getEnableActions()
-	const isRecordingEnable = !textContent
-	const formattedAudioDuration = format(addSeconds(startOfDay(new Date()), recordingDuration), 'mm:ss')
-	const formattedAudioPreviewDuration = format(addSeconds(startOfDay(new Date()), previewDuration), 'mm:ss')
-	const previewDurationPercentage = previewDuration * 100 / recordingDuration
-	const isTextInputVisible = !isAudioRecording && !audio
-	const isCameraVisible = !isAudioRecording && !audio
-	const isAudioInputVisible = isAudioRecording || audio
-	const isAudioOptionsVisible = audio
-
 	return (
-		<>
-			{isCameraMenuOpen && <Camera onConfirmPhoto={() => { setIsCameraMenuOpen(false) }} />}
+		<div id="chatbox-input" className="h-10 flex justify-end items-center bg-slate-100 dark:bg-slate-700 pr-2 z-20 shadow-lg">
+			{inputMode === '' && (
+				<input 
+					type="text" 
+					ref={inputRef}
+					className="h-full bg-transparent w-full outline-none px-3 flex items-center text-sm text-slate-600 dark:text-slate-200" 
+					onChange={e => {
+						setTextContent(e.target.value)
+					}}
+					value={textContent}
+				/>
+			)}
 
-			<div id="chatbox-input" className="h-10 flex justify-between items-center bg-slate-100 dark:bg-slate-700 pr-2 z-20 shadow-lg">
-				{isTextInputVisible && (
-					<input 
-						type="text" 
-						ref={inputRef}
-						className="h-full bg-transparent w-full outline-none px-3 flex items-center text-sm text-slate-600 dark:text-slate-200" 
-						onChange={e => {
-							setTextContent(e.target.value)
-						}}
-						value={textContent}
-						disabled={isAudioRecording}
-					/>
-				)}
+			{(!inputMode || inputMode === 'camera') && !textContent && (
+				<Camera 
+					onFocus={() => {
+						setInputMode('camera')
+					}}
+					onDismiss={() => { 
+						setInputMode('')
+					}}
+					onConfirm={() => { 
+						setInputMode('')
+					}}
+					disabled={inputMode && inputMode !== 'camera'}
+				/>
+			)}
 
-				{isCameraVisible && (
-					<div 
-						className="my-2 opacity-60 hover:opacity-100 hover:bg-slate-300 dark:hover:bg-slate-600 rounded-md p-1 flex items-center transition-colors text-2xl cursor-pointer"
-						onClick={() => { setIsCameraMenuOpen(old => !old) }}
-					>
-						<ion-icon name="camera-outline"></ion-icon>
-					</div>
-				)}
+			{(!inputMode || inputMode === 'audio') && !textContent && (
+				<Microphone
+					onFocus={() => {
+						setInputMode('audio')
+					}}
+					onDismiss={() => { 
+						setInputMode('')
+					}}
+					onConfirmAudio={() => {
+						setInputMode('')
+					}}
+					disabled={inputMode && inputMode !== 'audio'}
+				/>
+			)}
+			
+			{(!inputMode || inputMode === 'file') && !textContent && (
+				<FileAttach 
+					onFocus={() => {
+						setInputMode('file')
+					}}
+					onDismiss={() => { 
+						setInputMode('')
+					}}
+					onConfirmFile={() => {
+						setInputMode('')
+					}}
+					disabled={inputMode && inputMode !== 'file'}
+				/>
+			)}
 
-				{isAudioInputVisible && (
-					<div className="flex flex-col w-full pl-2">
-						<div className={`flex justify-between text-xs mt-2 opacity-60 p-0.5 ${isAudioPreviewing ? '' : 'mb-2'}`}>
-							{previewDuration > 0 ? (
-								<div className="flex items-center">
-									{formattedAudioPreviewDuration}
-								</div>
-							) : <div />}
-
-							{recordingDuration > 0 && (
-								<div className="flex items-center">
-									{formattedAudioDuration}
-								</div>
-							)}
-						</div>
-
-						{isAudioPreviewing && (
-							<div className="audio-preview-progress border border-slate-500 rounded-sm h-1 w-full">
-								<div className={`relative transition-all w-[${previewDurationPercentage}%] bg-sky-500 h-1`}></div>
-							</div>
-						)}
-					</div>
-				)}
-
-				{isAudioOptionsVisible && (
-					<>
-						<div 
-							className="my-2 opacity-60 hover:opacity-100 hover:bg-slate-300 dark:hover:bg-slate-600 rounded-md p-1 flex items-center transition-colors text-xl cursor-pointer"
-							onClick={toggleStartStop}
-						>
-							<ion-icon name={isRecordedAudioPlaying ? 'stop-outline' : 'play-outline'}></ion-icon>
-						</div>
-
-						<div 
-							className="my-2 opacity-60 hover:opacity-100 hover:bg-slate-300 dark:hover:bg-slate-600 rounded-md p-1 flex items-center transition-colors text-xl cursor-pointer"
-							onClick={() => { 
-								setAudio(null) 
-							}}
-						>
-							<ion-icon name="trash-outline"></ion-icon>
-						</div>
-					</>
-				)}
-
-				{isRecordingEnable && (
-					<div 
-						className={`
-							my-2 hover:bg-slate-300 dark:hover:bg-slate-600 rounded-md p-1 flex items-center transition-colors text-2xl
-							${isCameraMenuOpen ? 'cursor-not-allowed opacity-20' : 'cursor-pointer opacity-60 hover:opacity-100'}
-						`}
-						onClick={isAudioRecording ? handleRecordStop : handleRecordStart}
-					>
-						<ion-icon name={isAudioRecording ? 'stop-outline' : 'mic-outline'}></ion-icon>
-					</div>
-				)}
-
-				{actions.map(action => (
-					<div 
-						key={action.icon}
-						className={`
-							my-2 hover:bg-slate-300 dark:hover:bg-slate-600 rounded-md p-1 flex items-center transition-colors
-							${textContent ? 'text-xl' : 'text-2xl'}
-							${action.disabled ? 'cursor-not-allowed opacity-20' : 'cursor-pointer opacity-60 hover:opacity-100'}
-						`}
-						onClick={action.function}
-					>
-						<ion-icon name={action.icon}></ion-icon>
-					</div>
-				))}
-			</div>
-		</>
+			{!inputMode && (
+				<div 
+					className="my-2  rounded-md p-1 flex items-center transition-colors text-xl hover:bg-slate-300 dark:hover:bg-slate-600 cursor-pointer opacity-60 hover:opacity-100 text-slate-800 dark:text-slate-300"
+					onClick={handleSend}
+				>
+					<ion-icon name="send-outline"></ion-icon>
+				</div>
+			)}
+		</div>
 	)
 }
 
@@ -1169,7 +1573,7 @@ function AudioPlayer({ media, whoami }) {
 	const formattedTotalDuration = audioDuration !== Infinity ? format(new Date(audioDuration * 1000), 'mm:ss') : ''
 
 	return (
-		<div className="audio-player flex flex-col">
+		<div className="audio-player flex flex-col select-none">
 			<div className="flex gap-1">
 				<div 
 					onClick={togglePlayPause} 
@@ -1198,7 +1602,7 @@ function AudioPlayer({ media, whoami }) {
 				/>
 
 				<span 
-					className="px-1 rounded-md text-sm text-slate-400 select-none hover:bg-slate-200 flex justify-center items-center" 
+					className="px-1 rounded-md text-sm text-slate-400 select-none hover:bg-slate-200 dark:hover:bg-slate-700 flex justify-center items-center" 
 					onClick={handleChangeSpeed}
 				>
 					{speed}x
