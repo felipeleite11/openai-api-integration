@@ -479,6 +479,7 @@ function Camera({ onConfirm, onFocus, onDismiss, disabled }) {
 	const [isRecordingVideo, setIsRecordingVideo] = useState(null)
 	const [isRecordedVideoPlaying, setIsRecordedVideoPlaying] = useState(null)
 	const [videoTakenBlob, setVideoTakenBlob] = useState(null)
+	const [audioTakenBlob, setAudioTakenBlob] = useState(null)
 	const [finalVideo, setFinalVideo] = useState(null)
 
 	async function setupCamera() {
@@ -520,7 +521,9 @@ function Camera({ onConfirm, onFocus, onDismiss, disabled }) {
 			const blob = new Blob(audioRecordingChunks, {
 				type: 'audio/mp3; codecs=opus'
 			})
-			
+		
+			setAudioTakenBlob(blob)
+
 			audioRecordingChunks = []
 			
 			const audioURL = window.URL.createObjectURL(blob)
@@ -564,6 +567,8 @@ function Camera({ onConfirm, onFocus, onDismiss, disabled }) {
 	function handleClear() {
 		setPhotoTaken(null)
 		setVideoTaken(null)
+		setVideoTakenBlob(null)
+		setAudioTakenBlob(null)
 		setIsRecordedVideoPlaying(false)
 	}
 
@@ -651,15 +656,19 @@ function Camera({ onConfirm, onFocus, onDismiss, disabled }) {
 		
 		await ffmpeg.load()
 
-		ffmpeg.FS('writeFile', 'video.mp4', await fetchFile(videoFile))
-		ffmpeg.FS('writeFile', 'audio.mp3', await fetchFile(audioFile))
+		ffmpeg.FS('writeFile', 'video.mp4', await fetchFile(videoTakenBlob))
+		ffmpeg.FS('writeFile', 'audio.mp3', await fetchFile(audioTakenBlob))
 		
 		await ffmpeg.run('-i', 'video.mp4', '-i', 'audio.mp3', '-c:v', 'copy', '-c:a', 'aac', 'output.mp4')
 
 		const data = ffmpeg.FS('readFile', 'output.mp4')
 
+		console.log('data.buffer', data.buffer)
+
 		const videoBlob = new Blob([data.buffer], { type: 'video/mp4' })
 		const videoUrl = URL.createObjectURL(videoBlob)
+
+		console.log('videoUrl', videoUrl)
 
 		setFinalVideo(videoUrl)
 	}
@@ -692,10 +701,10 @@ function Camera({ onConfirm, onFocus, onDismiss, disabled }) {
 	}, [photoTaken])
 
 	useEffect(() => {
-		if(videoTaken) {
+		if(videoTakenBlob && audioTakenBlob) {
         	mergeVideoAndAudio()
 		}
-	}, [videoTaken])
+	}, [videoTakenBlob, audioTakenBlob])
 
 	return (
 		<>
@@ -780,16 +789,14 @@ function Camera({ onConfirm, onFocus, onDismiss, disabled }) {
 						>
 						</video>
 
-						{finalVideo && (
+						{/* {finalVideo && (
 							<video 
 								src={finalVideo}
 								autoPlay
-								className={`
-									w-56 h-56 object-cover rounded-full self-center justify-self-center shadow-lg border-2 border-slate-200
-								`}
+								className="w-56 h-56 object-cover rounded-full self-center justify-self-center shadow-lg border-2 border-slate-200"
 							>
 							</video>
-						)}
+						)} */}
 
 						{videoTaken && !finalVideo && (
 							<>
@@ -797,7 +804,7 @@ function Camera({ onConfirm, onFocus, onDismiss, disabled }) {
 									src={videoTaken}
 									autoPlay
 									ref={previewVideoRef}
-									onClick={handlePauseVideoPreview}
+									onClick={isRecordedVideoPlaying ? handlePauseVideoPreview : handleContinueVideoPreview}
 									className="w-56 h-56 object-cover rounded-full self-center justify-self-center shadow-lg border-2 border-slate-200"
 								>
 								</video>
