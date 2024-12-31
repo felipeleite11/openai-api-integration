@@ -9,7 +9,7 @@ const openai = new OpenAI({
 	apiKey: process.env.OPENAI_KEY
 })
 
-const baseURL = 'https://openai.robot.rio.br'
+const baseURL = process.env.BASE_URL || 'https://openai.robot.rio.br'
 
 async function completion(userInput = 'Oi!') {
 	const response = await openai.chat.completions.create({
@@ -18,7 +18,7 @@ async function completion(userInput = 'Oi!') {
 			{ role: 'user', content: userInput }
 		],
 		model: 'gpt-3.5-turbo',
-		max_tokens: 40
+		// max_tokens: 40
 	})
 
 	console.log('User input:', userInput)
