@@ -122,24 +122,25 @@ async function speechToText(userInput) {
 	}
 }
 
-async function translateAudioToEnglish(userInput) {
+async function translateAudioToEnglish(userInput, extension) {
 	if (!userInput) {
 		return null
 	}
 
 	try {
-		const filePath = 'static/audio.wav'
+		const filePath = `static/audio${extension}`
 
-		fs.rm('static/audio.wav', () => { })
+		fs.rm(filePath, () => {})
 
-		fs.writeFile(filePath, userInput, () => { })
+		fs.writeFile(filePath, userInput, () => {})
 
 		const readStream = fs.createReadStream(filePath)
 
+		// Atualmente, traduz somente para inglês
+		
 		const response = await openai.audio.translations.create({
 			model: 'whisper-1',
-			file: readStream,
-			language: 'en'
+			file: readStream
 		})
 
 		return response.text
@@ -150,16 +151,16 @@ async function translateAudioToEnglish(userInput) {
 	}
 }
 
-async function completionByAudio(userInput, voice) {
+async function completionFromAudio(userInput, extension, voice = 'nova') {
 	if (!userInput) {
 		return null
 	}
 
 	try {
 		// Captura do áudio da pergunta
-		const filePath = 'static/audio.wav'
+		const filePath = `static/audio${extension}`
 
-		fs.rm('static/audio.wav', () => { })
+		fs.rm(filePath, () => {})
 
 		fs.writeFile(filePath, userInput, () => { })
 
@@ -193,7 +194,7 @@ async function completionByAudio(userInput, voice) {
 
 		const audio = await openai.audio.speech.create({
 			model: 'tts-1',
-			voice: voice || 'nova',
+			voice,
 			input: answer
 		})
 
@@ -235,9 +236,7 @@ async function retrieveAssistant(assistanteId) {
 	return assistant
 }
 
-async function sendToAssistant(input) {
-	// https://platform.openai.com/playground/assistants?assistant=asst_qV8lLXtQS8CnflMsnO5r45wf&mode=assistant&thread=thread_MkkTesdkkEB1pwLR32igvi5b
-
+async function sendToAssistant(input, assistant_id = 'asst_8aPrW9p7d26MenUNqPFpxI87') { // Assistente Sol: https://platform.openai.com/assistants/asst_8aPrW9p7d26MenUNqPFpxI87
 	// TUTORIAL: https://youtu.be/qOyNqGclSV4?si=KdJFvp-wzyyL28u7&t=503
 
 	const thread = await openai.beta.threads.create({
@@ -250,7 +249,7 @@ async function sendToAssistant(input) {
 	})
 
 	let run = await openai.beta.threads.runs.create(thread.id, {
-		assistant_id: 'asst_qV8lLXtQS8CnflMsnO5r45wf'
+		assistant_id
 	})
 
 	while(run.status !== 'completed') {
@@ -272,7 +271,7 @@ module.exports = {
 	translateAudioToEnglish,
 	textToSpeech,
 	speechToText,
-	completionByAudio,
+	completionFromAudio,
 	listAssistants,
 	retrieveAssistant,
 	sendToAssistant
