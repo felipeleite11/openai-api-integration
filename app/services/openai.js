@@ -32,23 +32,22 @@ async function createImage(userInput) {
 		return null
 	}
 
-	const numberOfImages = 1
-
-	const { data: response } = await axios.post('https://api.openai.com/v1/images/generations', {
+	const response = await openai.images.generate({
 		prompt: userInput,
-		model: 'dall-e-2',
-		n: numberOfImages,
-		size: '1024x1024'
-	}, {
-		headers: {
-			Authorization: `Bearer ${process.env.OPENAI_KEY}`
-		}
+		model: 'dall-e-3',
+		
+		// Modelo 'dall-e-2' suporta os parâmetros size e n.
+		// model: 'dall-e-2',
+		// n: 1, // número de imagens geradas
+		// size: '1024x1024' // 512x512
 	})
+	
+	const [image] = response.data
 
 	console.log('User input:', userInput)
-	console.log('\nChatGPT answer:', response.data[0].url)
+	console.log('\nChatGPT answer:', image.url)
 
-	return response.data[0].url
+	return image.url
 }
 
 async function textToSpeech(userInput, voice) {
@@ -258,11 +257,49 @@ async function sendToAssistant(input, assistant_id = 'asst_8aPrW9p7d26MenUNqPFpx
 		await delay(500)
 	}
 
-	const messagesOfThread = await openai.beta.threads.messages.list(thread.id)
+	const messagesOfThread = await openai.beta.threads.messages.list(thread.id, {
+		run_id: run.id,
+		limit: 1
+	})
 
-	const latestMessage = messagesOfThread.data[0]
+	const firstMessage = messagesOfThread.data[0]
 
-	return latestMessage.content[0].text.value
+	return firstMessage.content[0].text.value
+}
+
+async function chatCompletion(input, messagesInMemory = 2) {
+	if(messagesInMemory <= 0) {
+		throw new Error('messagesInMemory deve ser >= 1.')
+	}
+
+	// Representa todas as mensagens trocadas entre o assistente e este usuário.
+	const messages = [
+		{ 
+			role: 'developer', 
+			content: 'Você realiza cálculos matemáticos simples.'
+		},
+		{
+			role: 'user', 
+			content: 'Quanto é 4 + 4?'
+		},
+		{
+			role: 'assistant', 
+			content: 'É 8.'
+		},
+		{
+			role: 'user', 
+			content: input
+		}
+	]
+
+	const completion = await openai.chat.completions.create({
+		model: 'gpt-3.5-turbo',
+		messages: messages.slice(messages.length - messagesInMemory)
+	})
+
+	const [response] = completion.choices
+
+	return response
 }
 
 module.exports = {
@@ -274,5 +311,6 @@ module.exports = {
 	completionFromAudio,
 	listAssistants,
 	retrieveAssistant,
-	sendToAssistant
+	sendToAssistant,
+	chatCompletion
 }
